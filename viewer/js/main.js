@@ -11,40 +11,62 @@ function isSame(type, obj) {
   return obj !== undefined && obj !== null && clas === type;
 }
 
-class Size {
-  constructor(w, h, d) {
-    this.w = w;
-    this.h = h;
-    this.d = d;
-  }
-
-  set(w, h, d) {
-    this.w = w;
-    this.h = h;
-    this.d = d;
-  }
-
+class Vector {
   clone() {
-    return new Size(this.w, this.h, this.d);
+    return new Vector(...this.get_basis_());
+  }
+
+  operate(opration, n = 1, basis = this.get_base_names_()) {
+    if(!Array.isArray(basis)) basis = [basis];
+    let vector = this.clone();
+    for(let base of basis) {
+      if(typeof n === 'number') operation(vector[base], n);
+      else                      operation(vector[base], n[base]);
+    }
+    return base;
+  }
+
+  add(n = 1, basis) {
+    let operation = (a, b) => {a += b;};
+    return this.operate(operation, n, basis);
+  }
+
+  sub(n = 1, basis) {
+    let operation = (a, b) => {a -= b;};
+    return this.operate(operation, n, basis);
+  }
+
+  mul(n = 1, basis) {
+    let operation = (a, b) => {a *= b;};
+    return this.operate(operation, n, basis);
+  }
+
+  div(n = 1, basis) {
+    let operation = (a, b) => {a /= b;};
+    return this.operate(operation, n, basis);
+  }
+
+  mod(n = 1, basis) {
+    let operation = (a, b) => {a %= b;};
+    return this.operate(operation, n, basis);
   }
 
   to_array() {
-    return [this.w, this.h, this.d];
+    return this.get_basis_();
   }
 
-  static diff(a, b) {
-    let w = Math.abs(Math.abs(a.w - b.w) - 1);
-    let h = Math.abs(Math.abs(a.h - b.h) - 1);
-    let d = Math.abs(Math.abs(a.d - b.d) - 1);
-    return new Size(w, h, d);
+  get_basis_() {
+    return [];
+  }
+
+  get_base_names_() {
+    return [];
   }
 }
 
-class Pos {
-  constructor(x, y, z) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
+class Vector3D extends Vector {
+  constructor(x = 0, y = 0, z = 0) {
+    Object.assign(this, {x, y, z});
   }
 
   set(x, y, z) {
@@ -54,164 +76,186 @@ class Pos {
   }
 
   clone() {
-    return new Pos(this.x, this.y, this.z);
+    return new Vector3D(...this.get_basis_());
   }
 
-  add(axis, n = 1) {
-    let pos = this.clone();
-    pos[axis] += n * settings.PITCH;
-    return pos;
-  }
-
-  add_x(n = 1) {
-    return this.add('x', n);
-  }
-
-  add_y(n = 1) {
-    return this.add('y', n);
-  }
-
-  add_z(n = 1) {
-    return this.add('z', n);
-  }
-
-  sub(axis, n = 1) {
-    let pos = this.clone();
-    pos[axis] -= n * settings.PITCH;
-    return pos;
-  }
-
-  sub_x(n = 1) {
-    return this.sub('x', n);
-  }
-
-  sub_y(n = 1) {
-    return this.sub('y', n);
-  }
-
-  sub_z(n = 1) {
-    return this.sub('z', n);
-  }
-
-  increase(axis, n = 1) {
-    this[axis] += n * settings.PITCH;
-    return this;
-  }
-
-  increase_x(n = 1) {
-    return this.increase('x', n);
-  }
-
-  increase_y(n = 1) {
-    return this.increase('y', n);
-  }
-
-  increase_z(n = 1) {
-    return this.increase('z', n);
-  }
-
-  decrease(axis) {
-    this[axis] -= n * settings.PITCH;
-    return this;
-  }
-
-  decrease_x(n = 1) {
-    return this.decrease('x', n);
-  }
-
-  decrease_y(n = 1) {
-    return this.decrease('y', n);
-  }
-
-  decrease_z(n = 1) {
-    return this.decrease('z', n);
-  }
-
-  to_array() {
+  get_basis_() {
     return [this.x, this.y, this.z];
   }
 
-  static axes() {
+  get_base_names_() {
     return ['x', 'y', 'z'];
+  }
+}
+
+class Size extends Vector3D {
+  constructor(...args) {
+    super(...args);
+  }
+
+  clone() {
+    return new Size(...this.get_basis_());
+  }
+
+  static diff(a, b) {
+    let w = Math.abs(Math.abs(a.x - b.x) - 1);
+    let h = Math.abs(Math.abs(a.y - b.y) - 1);
+    let d = Math.abs(Math.abs(a.z - b.z) - 1);
+    return new Size(x, y, z);
+  }
+}
+
+class Pos extends Vector3D {
+  constructor(...args) {
+    super(...args);
+  }
+
+  clone() {
+    return new Pos(...this.get_basis_());
+  }
+
+  is_less_than(other) {
+    if(this.z < other.z) return true;
+    if(this.z > other.z) return false;
+    if(this.y < other.y) return true;
+    if(this.y > other.y) return false;
+    if(this.x < other.x) return true;
+    return false;
   }
 
   static min(a, b) {
-    if(a.z < b.z) return a;
-    if(a.z > b.z) return b;
-    if(a.y < b.y) return a;
-    if(a.y > b.y) return b;
-    if(a.x < b.x) return a;
+    if(a.is_less_than(b)) return a;
     return b;
   }
 }
 
-class Defect {
-  constructor(pos, size, color, transparent, opacity) {
+class Polyhedron {
+  constructor(pos, size) {
     Object.assign(this, {pos, size});
-    if(color) this.color = color;
-    if(transparent) this.transparent = transparent;
-    if(opacity) this.opacity = opacity;
   }
 
-  create_meshes(color = this.color, transparent = this.transparent, opacity = this.opacity) {
-    if(!color) color = settings.DEFAULT_COLOR;
-    if(!transparent) transparent = settings.DEFAULT_TRANSPARENT;
-    if(!opacity) opacity = settings.DEFAULT_OPACITY;
-    let geometry = new THREE.BoxGeometry(this.size.w * settings.SCALE, this.size.h * settings.SCALE, this.size.d * settings.SCALE);
+  create_meshes(geometry, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
     let material = new THREE.MeshPhongMaterial({color: color, transparent: transparent, opacity: opacity});
     let mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(this.pos.x * settings.SCALE, this.pos.y * settings.SCALE, this.pos.z * settings.SCALE);
+    mesh.position.set(...this.pos.mul(settings.SCALE).to_array());
     return [mesh];
+  }
+
+  clone() {
+    return new Polyhedron(this.pos, this.size);
+  }
+}
+
+class Rectangular extends Polyhedron {
+  constructor(...args) {
+    super(...args);
+  }
+
+  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    let geometry = new THREE.BoxGeometry(...this.size.mul(settings.SCALE).to_array());
+    return super.create_meshes(geometry, color, transparent, opacity);
+  }
+}
+
+class SquarePyramid extends Polyhedron {
+  // radius = size.x = size.y
+  // height = size.z
+  constructor(pos, size, rotation) {
+    super(pos, size);
+    Object.assign(this, {rotation});
+  }
+
+  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    var geometry = new THREE.ConeGeometry(this.size.x * settings.SCALE / Math.SQRT2, this.size.z * settings.SCALE, 4);
+    var mesh = super.create_meshes(geometry, color, transparent, opacity);
+    mesh.rotation.set(...rotation);
+    return mesh;
+  }
+}
+
+class Defect extends Rectangular {
+  constructor(...args) {
+    super(...args);
   }
 }
 
 class Vertex extends Defect {
-  constructor(pos, color, ...disp_attr) {
+  constructor(pos, color) {
     let size = new Size(1, 1, 1);
-    super(pos, size, ...disp_attr);
+    super(pos, size);
+  }
+
+  get_next(base, n = 1) {
+    let vertex = this.clone();
+    vertex.pos[base] += n * settings.PITCH;
+    return vertex;
+  }
+
+  static min(a, b) {
+    if(a.pos.is_less_than(b.pos)) return a;
+    return b;
+  }
+
+  static max(a, b) {
+    if(a.pos.is_less_than(b.pos)) return b;
+    return a;
   }
 }
 
 class Edge extends Defect {
-  constructor(vertex_a, vertex_b, ...disp_attr) {
+  constructor(vertex_a, vertex_b) {
+    // 引数がPosオブジェクトならVertexを生成
     for(let vertex of [vertex_a, vertex_b]) {
       if(!(vertex instanceof Vertex)) vertex = new Vertex(vertex);
     }
-    let pos = Pos.min(vertex_a.pos, vertex_b.pos);
-    let size = Size.diff(vertex_a.size, vertex_b.size);
-    super(pos, size, ...disp_attr);
+    let axis = this.get_axis_(vertex_a, vertex_b);
+    let pos  = this.get_size_(vertex_a, vertex_b, axis);
+    let size = this.get_size_(vertex_a, vertex_b, axis);
+    super(pos, size);
+    this.axis = axis;
     this.vertices = [vertex_a, vertex_b];
   }
 
-  get_axis() {
-    if(size.w)      return 'x';
-    else if(size.h) return 'y';
-    else if(size.d) return 'z';
-  }
-
-  decompose() {
+  decompose_to_minimum_units() {
     let decomposed_edges = [];
     let axis = this.get_axis();
-    let pos = this.pos.clone();
-    while(pos !== this.vertices[]) {
-      let next_pos = pos.add(axis);
-      decomposed_edges.push(new Edge(pos, next_pos));
-      pos.increase(axis);
+    let begin = Vertex.min(...this.vertices);
+    let end   = Vertex.max(...this.vertices);
+    for(let vertex = begin.clone(); vertex !== end;) {
+      let next_vertex = vertex.get_next(axis);
+      decomposed_edges.push(new Edge(vertex, next_vertex));
+      vertex = next_vertex;
     }
     return decomposed_edges;
   }
 
   create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
     let meshes = [];
-    for(let decomposed_edge : this.decompose()) {
+    for(let decomposed_edge : this.decompose_to_minimum_units()) {
       meshes.push(decomposed_edge.super.create_meshes(color, transparent, opacity));
     }
     return meshes;
   }
 
+  get_axis_(vertex_a, vertex_b) {
+    if(vertex_a.x !== vertex_b.x) return 'x';
+    if(vertex_a.y !== vertex_b.y) return 'y';
+    if(vertex_a.z !== vertex_b.z) return 'z';
+  }
+
+  get_pos_(vertex_a, vertex_b, axis) {
+    return Pos.min(vertex_a.pos, vertex_b.pos).add(1, axis);
+  }
+
+  get_size_(vertex_a, vertex_b, axis) {
+    let size = new Size(1, 1, 1);
+    size[axis] = Math.abs(vertex_a[axis] - vertex_b[axis]) - 1;
+    return size;
+  }
+
   static create_edges(vertices, is_loop = false) {
     let edges = [];
-    for(let i = 0; i < vertices.length - 1; i++) {
+    for(let i = 0; i < vertices.length - 1; ++i) {
       let edge = new Edge(vertices[i], vertices[i + 1]);
       edges.push(edge);
     }
@@ -258,6 +302,12 @@ class Injector {
         }
       }
     }
+  }
+
+  create_meshes() {
+    let mid_size = this.size.div(2, this.axis));
+    let opposite_pos = this.pos.add(this.size[axis], this.axis);
+    let pyramid_a = new SquarePyramid(this.pos, mid_size);
   }
 
   createConeMeshes_() {
