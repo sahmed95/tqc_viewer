@@ -3,10 +3,9 @@
 import * as settings from 'settings';
 
 var dispEdges = true;
-var directionalLightLevel = 0.7;
-var ambientLightLevel = 0.4;
 
-function isSame(type, obj) {
+
+function is_same(type, obj) {
   var clas = Object.prototype.toString.call(obj).slice(8, -1);
   return obj !== undefined && obj !== null && clas === type;
 }
@@ -89,10 +88,6 @@ class Vector3D extends Vector {
 }
 
 class Size extends Vector3D {
-  constructor(...args) {
-    super(...args);
-  }
-
   clone() {
     return new Size(...this.get_basis_());
   }
@@ -106,10 +101,6 @@ class Size extends Vector3D {
 }
 
 class Pos extends Vector3D {
-  constructor(...args) {
-    super(...args);
-  }
-
   clone() {
     return new Pos(...this.get_basis_());
   }
@@ -158,11 +149,12 @@ class Rectangular extends Polyhedron {
 }
 
 class SquarePyramid extends Polyhedron {
-  // radius = size.x = size.y
-  // height = size.z
-  constructor(pos, size, rotation) {
-    super(pos, size);
-    Object.assign(this, {rotation});
+  constructor(pos, bottom_len, height, axis = 'z', reverse = false) {
+    super(pos, new Size(bottom_len, bottom_len, height));
+    let r = reverse ? Math.PI : 0;
+    if(axis === 'x')      this.rotation = {0, r - Math.PI / 2, 0};
+    else if(axis === 'y') this.rotation = {r - Math.PI / 2, 0, 0};
+    else if(axis === 'z') this.rotation = {r, 0, 0};
   }
 
   create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
@@ -173,14 +165,10 @@ class SquarePyramid extends Polyhedron {
   }
 }
 
-class Defect extends Rectangular {
-  constructor(...args) {
-    super(...args);
-  }
-}
+class Defect extends Rectangular {}
 
 class Vertex extends Defect {
-  constructor(pos, color) {
+  constructor(pos) {
     let size = new Size(1, 1, 1);
     super(pos, size);
   }
@@ -232,7 +220,7 @@ class Edge extends Defect {
   create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
     let meshes = [];
     for(let decomposed_edge : this.decompose_to_minimum_units()) {
-      meshes.push(decomposed_edge.super.create_meshes(color, transparent, opacity));
+      meshes.push(...decomposed_edge.super.create_meshes(color, transparent, opacity));
     }
     return meshes;
   }
@@ -267,90 +255,39 @@ class Edge extends Defect {
   }
 }
 
-class Block extends Edge {
-  constructor(...args) {
-    super(...args);
-  }
-}
+class Block extends Edge {}
 
 class Injector {
-  constructor(...args) {
-    super(...args);
-  }
-
-  constructor(col, row) {
-    var x = pitch * col;
-    var y = -pitch * row;
-    var [zj1, zj2] = [0, pitch];
-    var [zc1, zc2] = [pitch / 2 - 0.5, pitch / 2 + 0.5];
-    var [zb1, zb2] = [(zc1 + zj1) / 2, (zj2 + zc2) / 2];
-    this.cone1 = new Block(new Pos(x, y, zc1), new Size(1, 1, 1));
-    this.cone2 = new Block(new Pos(x, y, zc2), new Size(1, 1, 1));
-    this.block1 = new Block(new Pos(x, y, zb1), new Size(1, 1, zc1 - zj1 - 1));
-    this.block2 = new Block(new Pos(x, y, zb2), new Size(1, 1, zj2 - zc2 - 1));
-    this.color = colors.rough;
-    this.ghost = false;
-  }
-
-  apply(scene) {
-    for(let meshes of [this.createConeMeshes_(), this.createBlockMeshes_()]) {
-      for(let mesh of meshes) {
-        scene.add(mesh);
-        if(dispEdges) {
-          let edge = new THREE.EdgesHelper(mesh, 0x000000);
-          scene.add(edge);
-        }
-      }
-    }
-  }
-
-  create_meshes() {
-    let mid_size = this.size.div(2, this.axis));
+  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    let height = this.size[this.axis] / 2;
     let opposite_pos = this.pos.add(this.size[axis], this.axis);
-    let pyramid_a = new SquarePyramid(this.pos, mid_size);
-  }
-
-  createConeMeshes_() {
-    var mesh1 = this.createConeMesh_(this.cone1, [Math.PI / 2, Math.PI / 4, 0]);
-    var mesh2 = this.createConeMesh_(this.cone2, [-Math.PI / 2, Math.PI / 4, 0]);
-    return [mesh1, mesh2];
-  }
-
-  createBlockMeshes_() {
-    var mesh1 = this.createBlockMesh_(this.block1);
-    var mesh2 = this.createBlockMesh_(this.block2);
-    return [mesh1, mesh2];
-  }
-
-  createConeMesh_(cone, rotation) {
-    var geometry = new THREE.ConeGeometry(cone.size.w * scale / Math.SQRT2, cone.size.w * scale, 4);
-    var material = new THREE.MeshPhongMaterial({color: this.color, opacity: opacity, transparent: this.ghost});
-    var mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(cone.pos.x * scale, cone.pos.y * scale, cone.pos.z * scale);
-    mesh.rotation.set(...rotation);
-    return mesh;
-  }
-
-  createBlockMesh_(block) {
-    var geometry = new THREE.BoxGeometry(block.size.w * scale, block.size.h * scale, block.size.d * scale);
-    var material = new THREE.MeshPhongMaterial({color: this.color, opacity: opacity, transparent: this.ghost});
-    var mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(block.pos.x * scale, block.pos.y * scale, block.pos.z * scale);
-    return mesh;
+    let pyramid_a = new SquarePyramid(this.pos, 1, height, axis);
+    let pyramid_b = new SquarePyramid(opposite_pos, 1, height, axis, true);
+    return [...pyramid_a.create_meshes(color, transparent, opacity),
+            ...pyramid_b.create_meshes(color, transparent, opacity)];
   }
 }
 
 class Cap extends Injector {
-  constructor(...args) {
-    super(...args);
-    this.transparent = true;
+  create_meshes(color = settings.DEFAULT_COLOR, transparent = true, opacity = settings.DEFAULT_OPACITY) {
+    return super.create_meshes(color, transparent, opacity)
   }
 }
 
 class LogicalQubit {
-  constructor(edges, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    Object.assign(this, {edges, color, transparent, opacity})
+  constructor(edges) {
+    Object.assign(this, {edges})
     this.vertices = this.create_vertices_();
+  }
+
+  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    let meshes = [];
+    for(let defects of [this.edges, this.vertices]) {
+      for(let defect of defects) {
+        meshes.push(...defect.create_meshes(color, transparent, opacity));
+      }
+    }
+    return meshes;
   }
 
   create_vertices_() {
@@ -362,205 +299,21 @@ class LogicalQubit {
     }
     return vertices;
   }
-
-  create_meshes() {
-    let meshes = [];
-    for(let defects of [this.edges, this.vertices]) {
-      for(let defect of defects) {
-        Array.prototype.push.apply(meshes, defect.create_meshes(this.color, this.transparent, this.opacity));
-      }
-    }
-    return meshes;
-  }
 }
 
 class Rough extends LogicalQubit {
-  constructor(edges, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    super(edges, settngs.COLOR_SET.rough, transparent, opacity);
+  create_meshes(color = settings.COLOR_SET.ROUGH, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    return super.create_meshes(color, transparent, opacity);
   }
 }
 
 class Smooth extends LogicalQubit {
-  constructor(edges, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    super(edges, settngs.COLOR_SET.smooth, transparent, opacity);
+  create_meshes(color = settings.COLOR_SET.SMOOTH, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    return super.create_meshes(color, transparent, opacity);
   }
 }
 
-class Connection extends Rough {
-  constructor(sourceJoint, destJoint, routeJoints) {
-    var joints = [];
-    var prevJoint = sourceJoint;
-    for(let routeJoint of routeJoints) {
-      let halfwayJoints = Connection.createHalfwayJoints(prevJoint, routeJoint);
-      joints.push(...halfwayJoints);
-      joints.push(routeJoint);
-      prevJoint = routeJoint;
-    }
-    var halfwayJoints = Connection.createHalfwayJoints(prevJoint, destJoint);
-    joints.push(...halfwayJoints);
-    var edges = Edge.createEdges([sourceJoint, ...joints, destJoint]);
-    super(joints, edges);
-  }
-
-  static createHalfwayJoints(joint1, joint2) {
-    var joints = [];
-    var [pos1, pos2] = [joint1.pos, joint2.pos];
-    var axis = Connection.getDiffAxis(pos1, pos2);
-    var direct = (pos1[axis] - pos2[axis] < 0);
-    var pos = new Pos(pos1.x, pos1.y, pos1.z);
-    direct ? pos.inc(axis) : pos.dec(axis);
-    while(pos[axis] != pos2[axis]) {
-      joints.push(new Joint(pos));
-      direct ? pos.inc(axis) : pos.dec(axis);
-    }
-    return joints;
-  }
-
-  static getDiffAxis(pos1, pos2) {
-    for(let axis of Pos.axes()) {
-      let dist = pos1[axis] - pos2[axis];
-      if(dist != 0) {
-        return axis;
-      }
-    }
-    return null;
-  }
-}
-
-class Bridge extends Rough {
-  constructor(col, row) {
-    var x = pitch * col;
-    var y = -pitch * row;
-    var z = function(i) {return pitch * i;};
-    var joint1 = new Joint(new Pos(x, y, z(0)));
-    var joint2 = new Joint(new Pos(x, y, z(1)));
-    var edges = Edge.createEdges([joint1, joint2]);
-    super([], edges);
-  }
-}
-
-class Switch extends Bridge {
-  constructor(...args) {
-    super(...args);
-    this.ghost = true;
-  }
-}
-
-class SingleBitLine extends Rough {
-  constructor(no, range, pairType) {
-    var x = function(i) {return pitch * i;};
-    var y = -pitch * no;
-    var z = pairType == 'j' ? pitch : 0;
-    var joints = [];
-    for(let i = range[0]; i <= range[1]; i++) {
-      let joint = new Joint(new Pos(x(i), y, z));
-      joints.push(joint);
-    }
-    var edges = Edge.createEdges(joints);
-    super(joints, edges);
-  }
-}
-
-class BitLine {
-  constructor(no, range, bridges = [], switches = [], injectors = []) {
-    this.no = no;
-    this.range = range;
-    this.lines = [new SingleBitLine(no, range, 'j'),
-                  new SingleBitLine(no, range, 'k')];
-    this.bridges = bridges;
-    this.switches = switches;
-    this.injectors = injectors;
-  }
-
-  addBridge(col) {
-    var bridge = new Bridge(col, this.no);
-    this.bridges.push(bridge);
-  }
-
-  apply(scene) {
-    for(let elements of [this.lines, this.bridges, this.switches, this.injectors]) {
-      for(let element of elements) {
-        element.apply(scene);
-      }
-    }
-  }
-}
-
-class Braiding extends Smooth {
-  constructor(cbitNo, tbitNoArray, col) {
-    var bitNoArray = tbitNoArray.concat([cbitNo]);
-    var minBitNo = Math.min.apply(null, bitNoArray);
-    var maxBitNo = Math.max.apply(null, bitNoArray);
-    var pos = new Pos(pitch * col - pitch / 2,
-                      -pitch * minBitNo + pitch / 2,
-                      pitch / 2);
-    var upper = (minBitNo != cbitNo);
-    if(upper) {
-      pos.incz();
-    }
-    var joints = [new Joint(pos)];
-    var push = function() {
-      joints.push(new Joint(pos));
-    };
-    for(let bitNo = minBitNo; bitNo <= maxBitNo; bitNo++) {
-      if(bitNo == cbitNo || tbitNoArray.indexOf(bitNo) != -1) {
-        if(upper) {
-          pos.decz();
-          upper = false;
-          push();
-        }
-      }
-      else {
-        if(!upper) {
-          pos.incz();
-          upper = true;
-          push();
-        }
-      }
-      pos.decy();
-      push();
-    }
-    if(!upper && maxBitNo != cbitNo) {
-      pos.incz();
-      upper = true;
-      push();
-    }
-    pos.incx();
-    push();
-    for(let bitNo = maxBitNo; bitNo >= minBitNo; bitNo--) {
-      if(bitNo == cbitNo) {
-        if(upper) {
-          pos.decz();
-          upper = false;
-          push();
-        }
-      }
-      else {
-        if(!upper) {
-          pos.incz();
-          upper = true;
-          push();
-        }
-      }
-      pos.incy();
-      push();
-    }
-    pos.decx();
-    push();
-
-    var edges = Edge.createEdges(joints, false);
-    super(joints, edges);
-    this.col = col;
-  }
-}
-
-class Module {
-  constructor(pos, size) {
-    this.pos = new Pos(pos.x, pos.y, pos.z);
-    this.size = new Size(size.w, size.h, size.d);
-    this.ghost = false;
-  }
-
+class Module extends Rectangular {
   apply(scene) {
     var mesh = this.createMesh();
     scene.add(mesh);
@@ -570,183 +323,84 @@ class Module {
     }
   }
 
-  createMesh() {
-    var geometry = new THREE.BoxGeometry(this.size.w * scale, this.size.h * scale, this.size.d * scale);
-    var material = new THREE.MeshPhongMaterial({color: colors.module, opacity: opacity, transparent: this.ghost});
-    var mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(this.pos.x * scale, this.pos.y * scale, this.pos.z * scale);
-    return mesh;
+  create_meshes(color = settings.COLOR_SET.MODULE, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    super.create_meshes(color, transparent, opacity);
   }
 };
 
 class Circuit {
-  constructor(length) {
-    this.length = length;
-    this.bits = [];
-    this.braidings = [];
-    this.modules = [];
-    this.connections = [];
+  constructor(logical_qubits, modules) {
+    Object.assign(this, {logical_qubits, modules});
   }
 
-  getBit(bitNo) {
-    for(let bit of this.bits) {
-      if(bit.no == bitNo) {
-        return bit;
+  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    let meshes = [];
+    for(let polyhedrons of [this.logical_qubits, this.modules]) {
+      for(let polyhedron of polyhedrons) {
+        meshes.push(...polyhedron.create_meshes(color, transparent, opacity));
       }
     }
-    return null;
-  }
-
-  addBit() {
-    var no = this.bits.length;
-    var range = [0, this.length];
-    this.insertBit(no, range);
-  }
-
-  insertBit(...args) {
-    var bit = new BitLine(...args);
-    this.bits.push(bit);
-  }
-
-  addBraiding(cbitNo, tbitNoArray) {
-    var col = this.braidings.length * 2 + 1;
-    this.insertBraiding(cbitNo, tbitNoArray, col);
-  }
-
-  insertBraiding(cbitNo, tbitNoArray, col) {
-    var braiding = new Braiding(cbitNo, tbitNoArray, col);
-    this.braidings.push(braiding);
-    var cbit = this.getBit(cbitNo);
-    cbit.addBridge(col);
-  }
-
-  insertModule(pos, size, ghost = false) {
-    var module = new Module(pos, size);
-    module.ghost = ghost;
-    this.modules.push(module);
-  }
-
-  insertConnection(sourcePos, destPos, routePosArray, ghost = false) {
-    var sourceJoint = new Joint(sourcePos);
-    var destJoint = new Joint(destPos);
-    var routeJoints = routePosArray.map(function(e) {return new Joint(e)});
-    var conn = new Connection(sourceJoint, destJoint, routeJoints);
-    conn.ghost = ghost;
-    this.connections.push(conn);
-  }
-
-  apply(scene) {
-    for(let elements of [this.bits, this.braidings, this.modules, this.connections]) {
-      for(let element of elements) {
-        element.apply(scene);
-      }
-    }
+    return meshes;
   }
 }
 
 class CircuitCreator {
-  constructor(data) {
-    this.data = data;
+  static create(data) {
+    let logical_qubits = this.create_logical_qubits(data.logical_qubits);
+    let modules = this.create_modules(data.modules);
+    return new Circuit(logical_qubits, modules);
   }
 
-  create() {
-    var colRange = this.data.bits ? this.getColRange() : [0, 0];
-    this.circuit = new Circuit(colRange[1]);
-    this.addBits();
-    this.addBraidings();
-    this.addModules();
-    this.addConnections();
-    return this.circuit;
+  static create_logical_qubits(data) {
+    return [
+      this.create_blocks(data.blocks),
+      this.create_injectors(data.injectors),
+      this.create_caps(data.caps)
+    ];
   }
 
-  addBits() {
-    if(!this.data.bits) {
-      return;
+  static create_modules(data) {
+    let modules = [];
+    for(let module_data of data) {
+      let pos = new Pos(...module_data.position);
+      let size = new Size(...module_data.size);
+      edges.push(new Module(pos, size));
     }
-    for(let bit of this.data.bits) {
-      let bridges = CircuitCreator.createBlocks(bit.bridges, bit.row, Bridge);
-      let switches = CircuitCreator.createBlocks(bit.switches, bit.row, Switch);
-      let injectors = CircuitCreator.createBlocks(bit.injectors, bit.row, Injector);
-      let caps = CircuitCreator.createBlocks(bit.caps, bit.row, Cap);
-      let pins = CircuitCreator.createBlocks(bit.pins, bit.row, Pin);
-      injectors.push(...caps, ...pins);
-
-      this.circuit.insertBit(bit.row, bit.range, bridges, switches, injectors);
-    }
+    return edges;
   }
 
-  addBraidings() {
-    if(!this.data.braidings) {
-      return;
-    }
-    for(let braiding of this.data.braidings) {
-      let cbitNo = braiding.control;
-      let tbitNoArray = braiding.targets;
-      let col = braiding.column;
-      this.circuit.insertBraiding(cbitNo, tbitNoArray, col);
-    }
+  static create_blocks(data) {
+    return this.create_edges_(data, Block);
   }
 
-  addModules() {
-    if(!this.data.modules) {
-      return;
-    }
-    for(let module of this.data.modules) {
-      var rowToY = function(a) {return [a[0], a[1] * -1, a[2]]};
-      var scaling = function(e) {return e * pitch + 1};
-      let size = new Size(...module.size.map(scaling));
-      let rawPos = rowToY(module.position).map(scaling);
-      rawPos[0] += size.w / 2 - 1.5
-      rawPos[1] -= size.h / 2 + 0.5;
-      rawPos[2] += size.d / 2 - 1.5;
-      let pos = new Pos(...rawPos);
-      let ghost = module.ghost ? module.ghost : false;
-      this.circuit.insertModule(pos, size, ghost);
-    }
+  static create_injectors(data) {
+    return this.create_edges_(data, Injector);
   }
 
-  addConnections() {
-    if(!this.data.connections) {
-      return;
-    }
-    for(let conn of this.data.connections) {
-      var rowToY = function(a) {return [a[0], a[1] * -1, a[2]]};
-      var scaling = function(e) {return e * pitch};
-      let sourcePos = new Pos(...rowToY(conn.source).map(scaling));
-      let destPos = new Pos(...rowToY(conn.destination).map(scaling));
-      let routePosArray = conn.route ? conn.route.map(function(e) {return (new Pos(...rowToY(e).map(scaling)))}) : [];
-      let ghost = conn.ghost ? conn.ghost : false;
-      this.circuit.insertConnection(sourcePos, destPos, routePosArray, ghost);
-    }
+  static create_caps(data) {
+    return this.create_edges_(data, Cap);
   }
 
-  getColRange() {
-    var min = 0;
-    var max = 0;
-    for(let bit of this.data.bits) {
-      min = Math.min(min, bit.range[0]);
-      max = Math.max(max, bit.range[1]);
+  static create_edges_(data, cls) {
+    let edges = [];
+    for(let vertices of data) {
+      let vartex_a = new Vertex(new Pos(...vertices[0]));
+      let vartex_b = new Vertex(new Pos(...vertices[1]));
+      edges.push(new cls(vertex_a, vertex_b));
     }
-    return [min, max];
+    return edges;
   }
+}
 
-  static createBlock(json, row, AbstructBlock) {
-    if(isSame('Number', json)) {
-      return new AbstructBlock(json, row);
+class CircuitDrawer {
+  static draw(circuit, scene) {
+    for(let mesh of circuit.create_meshes()) {
+      scene.add(mesh);
+      if(settings.FLAGS.DISPLAY_EDGES) {
+        let edge = new THREE.EdgesHelper(mesh, 0x000000);
+        scene.add(edge);
+      }
     }
-    var col = json.column;
-    var block = new AbstructBlock(col, row);
-    if(json.color) {
-      block.color = parseInt(json.color, 16);
-    }
-    return block;
-  }
-
-  static createBlocks(jsonArray, row, AbstructBlock) {
-    if(!jsonArray) {
-      return [];
-    }
-    return jsonArray.map(function(e) {return CircuitCreator.createBlock(e, row, AbstructBlock)});
   }
 }
 
@@ -767,23 +421,15 @@ var main = function(data) {
   renderer.setClearColor(new THREE.Color(0xffffff));
   document.getElementById('canvas').appendChild(renderer.domElement);
 
-  var directionalLight = new THREE.DirectionalLight(0xffffff, directionalLightLevel);
-  var ambientLight = new THREE.AmbientLight(0xffffff, ambientLightLevel);
+  var directionalLight = new THREE.DirectionalLight(0xffffff, settings.DIRECTIONAL_LIGHT_LEVEL);
+  var ambientLight = new THREE.AmbientLight(0xffffff, settings.AMBIENT_LIGHT_LEVEL);
   directionalLight.position.set(0, -0.5, 0.7);
   scene.add(directionalLight);
   scene.add(ambientLight);
 
-  var circuit = new CircuitCreator(data).create();
+  var circuit = CircuitCreator.create(data);
 
-  //var circuit = new Circuit(10);
-  //circuit.addBit();
-  //circuit.addBit();
-  //circuit.addBit();
-  //circuit.addBraiding(1, [0, 2]);
-  //circuit.addBraiding(0, [2]);
-  //circuit.insertModule(new Pos(5, -5, pitch + 5), new Size(10, 10, 10));
-
-  circuit.apply(scene);
+  CircuitDrawer.draw(circuit, scene);
 
   var controls = new THREE.OrbitControls(camera);
 
