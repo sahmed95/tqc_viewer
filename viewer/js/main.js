@@ -140,78 +140,67 @@ class Pos extends Vector3D {
 }
 
 class Polyhedron {
-  constructor(pos, size, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+  constructor(pos, size) {
     this.pos = pos.clone();
     this.size = size.clone();
-    Object.assign(this, {color, transparent, opacity});
   }
 
-  create_meshes(geometry) {
-    let material = new THREE.MeshPhongMaterial({color: this.color, transparent: this.transparent, opacity: this.opacity});
+  create_meshes(geometry, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    let material = new THREE.MeshPhongMaterial({color: color, transparent: transparent, opacity: opacity});
     let mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...this.pos.mul(settings.SCALE).to_array());
     return [mesh];
   }
 
-  get_visible_parameters() {
-    return [this.color, this.transparent, this.opacity];
-  }
-
   clone() {
-    return new Polyhedron(...this.get_properties_());
-  }
-
-  get_properties_() {
-    let properties = []
-    for(let property in this) {
-      properties.push(this[property]);
-    }
-    return properties;
+    return new Polyhedron(this.pos, this.size);
   }
 }
 
 class Rectangular extends Polyhedron {
-  create_meshes() {
+  create_meshes(...visible) {
     let geometry = new THREE.BoxGeometry(...this.size.mul(settings.SCALE).to_array());
-    return super.create_meshes(geometry);
+    return super.create_meshes(geometry, ...visible);
   }
 
   clone() {
-    return new Rectangular(...this.get_properties_());
+    return new Rectangular(this.pos, this.size);
   }
 }
 
 class SquarePyramid extends Polyhedron {
-  constructor(pos, bottom_len, height, axis = 'z', reverse = false, ...visible) {
-    super(pos, new Size(bottom_len, bottom_len, height), ...visible);
+  constructor(pos, bottom_len, height, axis = 'z', reverse = false) {
+    super(pos, new Size(bottom_len, bottom_len, height));
     let r = reverse ? Math.PI : 0;
     if(axis === 'x')      this.rotation = [0, r - Math.PI / 2, 0];
     else if(axis === 'y') this.rotation = [r - Math.PI / 2, 0, 0];
     else if(axis === 'z') this.rotation = [r, 0, 0];
   }
 
-  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+  create_meshes(...visible) {
     let geometry = new THREE.ConeGeometry(this.size.x * settings.SCALE / Math.SQRT2, this.size.z * settings.SCALE, 4);
-    let mesh = super.create_meshes(geometry, color, transparent, opacity);
-    mesh.rotation.set(...this.rotation);
-    return mesh;
+    let meshes = super.create_meshes(geometry, ...visible);
+    for(let mesh of meshes) {
+      mesh.rotation.set(...this.rotation);
+    }
+    return meshes;
   }
 
   clone() {
-    return new SquarePyramid(...this.get_properties_());
+    return new SquarePyramid(this.pos, this.size);
   }
 }
 
 class Defect extends Rectangular {
   clone() {
-    return new Defect(...this.get_properties_());
+    return new Defect(this.pos, this.size);
   }
 }
 
 class Vertex extends Defect {
-  constructor(pos, ...visible) {
+  constructor(pos) {
     let size = new Size(1, 1, 1);
-    super(pos.mul(settings.PITCH), size, ...visible);
+    super(pos.mul(settings.PITCH), size);
   }
 
   get_next(base, n = 1) {
@@ -221,7 +210,7 @@ class Vertex extends Defect {
   }
 
   clone() {
-    return new Vertex(...this.get_properties_());
+    return new Vertex(this.pos);
   }
 
   static compare(a, b) {
@@ -240,12 +229,10 @@ class Vertex extends Defect {
 }
 
 class Edge extends Defect {
-  constructor(vertex_a, vertex_b, ...visible) {
+  constructor(vertex_a, vertex_b) {
+    // 引数がPosオブジェクトならVertexを生成
     for(let vertex of [vertex_a, vertex_b]) {
-      // 頂点オブジェクトをコピーして色を設定
-      if(vertex instanceof Vertex) vertex = new Vertex(vertex.pos, ...visible);
-      // 引数がPosオブジェクトならVertexを生成
-      else                         vertex = new Vertex(vertex, ...visible);
+      if(!(vertex instanceof Vertex)) vertex = new Vertex(vertex);
     }
     Edge.check_params(vertex_a, vertex_b);
     let vertices = [vertex_a, vertex_b].sort(Vertex.compare);
@@ -254,7 +241,7 @@ class Edge extends Defect {
     let axis = Edge.get_axis_(vertex_a, vertex_b);
     let pos = Edge.get_pos_(vertex_a, vertex_b, axis);
     let size = Edge.get_size_(vertex_a, vertex_b, axis);
-    super(pos, size, ...visible);
+    super(pos, size);
     this.axis = axis;
     this.vertices = vertices;
   }
@@ -270,8 +257,14 @@ class Edge extends Defect {
     return decomposed_edges;
   }
 
+  create_meshes(...visible) {
+    let meshes = [];
+    meshes.push(...super.create_meshes(...visible));
+    return meshes;
+  }
+
   clone() {
-    return new Edge(...this.vertices, ...this.get_visible_parameters());
+    return new Edge(...this.vertices);
   }
 
   static check_params(vertex_a, vertex_b) {
@@ -314,47 +307,36 @@ class Edge extends Defect {
   }
 }
 
-class Block extends Edge {
-  clone() {
-    return new Block(...this.vertices, ...this.get_visible_parameters());
-  }
-}
+class Block extends Edge {}
 
-class Injector {
-  create_meshes() {
+class Injector extends Edge {
+  create_meshes(...visible) {
     let height = this.size[this.axis] / 2;
-    let opposite_pos = this.pos.add(this.size[axis], this.axis);
-    let pyramid_a = new SquarePyramid(this.pos, 1, height, axis);
-    let pyramid_b = new SquarePyramid(opposite_pos, 1, height, axis, true);
-    return [...pyramid_a.create_meshes(), ...pyramid_b.create_meshes()];
-  }
-
-  clone() {
-    return new Injector(...this.vertices, ...this.get_visible_parameters());
+    let opposite_pos = this.pos.add(this.size[this.axis], this.axis);
+    let pyramid_a = new SquarePyramid(this.pos, 1, height, this.axis);
+    let pyramid_b = new SquarePyramid(opposite_pos, 1, height, this.axis, true);
+    return [...pyramid_a.create_meshes(...visible),
+            ...pyramid_b.create_meshes(...visible)];
   }
 }
 
 class Cap extends Injector {
-  constructor(vertex_a, vertex_b, color = settings.DEFAULT_COLOR, transparent = true, opacity = settings.DEFAULT_OPACITY) {
-    super(vertex_a, vertex_b, color, transparent, opacity);
-  }
-
-  clone() {
-    return new Cap(...this.vertices, ...this.get_visible_parameters());
+  create_meshes(color = undefined, transparent = true, opacity = undefined) {
+    return super.create_meshes(color, transparent, opacity)
   }
 }
 
 class LogicalQubit {
-  constructor(edges, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    Object.assign(this, {edges, color, transparent, opacity})
+  constructor(edges) {
+    Object.assign(this, {edges})
     this.vertices = this.create_vertices_();
   }
 
-  create_meshes() {
+  create_meshes(...visible) {
     let meshes = [];
     for(let defects of [this.edges, this.vertices]) {
       for(let defect of defects) {
-        meshes.push(...defect.create_meshes());
+        meshes.push(...defect.create_meshes(...visible));
       }
     }
     return meshes;
@@ -372,20 +354,29 @@ class LogicalQubit {
 }
 
 class Rough extends LogicalQubit {
-  constructor(edges, color = settings.COLOR_SET.ROUGH, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    super(edges, color, transparent, opacity);
+  create_meshes(color = settings.COLOR_SET.ROUGH, transparent = undefined, opacity = undefined) {
+    return super.create_meshes(color, transparent, opacity);
   }
 }
 
 class Smooth extends LogicalQubit {
-  constructor(edges, color = settings.COLOR_SET.SMOOTH, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    super(edges, color, transparent, opacity);
+  create_meshes(color = settings.COLOR_SET.SMOOTH, transparent = undefined, opacity = undefined) {
+    return super.create_meshes(color, transparent, opacity);
   }
 }
 
 class Module extends Rectangular {
-  constructor(pos, size, color = settings.COLOR_SET.MODULE, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
-    super(pos, size, color, transparent, opacity);
+  apply(scene) {
+    var mesh = this.createMesh();
+    scene.add(mesh);
+    if(dispEdges) {
+      var edge = new THREE.EdgesHelper(mesh, 0x000000);
+      scene.add(edge);
+    }
+  }
+
+  create_meshes(color = settings.COLOR_SET.MODULE, transparent = undefined, opacity = undefined) {
+    super.create_meshes(color, transparent, opacity);
   }
 };
 
@@ -394,11 +385,11 @@ class Circuit {
     Object.assign(this, {logical_qubits, modules});
   }
 
-  create_meshes(color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+  create_meshes(...visible) {
     let meshes = [];
     for(let polyhedrons of [this.logical_qubits, this.modules]) {
       for(let polyhedron of polyhedrons) {
-        meshes.push(...polyhedron.create_meshes(color, transparent, opacity));
+        meshes.push(...polyhedron.create_meshes(...visible));
       }
     }
     return meshes;
@@ -463,7 +454,7 @@ class CircuitDrawer {
     for(let mesh of circuit.create_meshes()) {
       scene.add(mesh);
       if(settings.DISPLAY_EDGES_FLAG) {
-        let edge = new THREE.EdgesHelper(mesh, 0x000000);
+        let edge = new THREE.EdgesHelper(mesh, 0x000000, 0.01);
         scene.add(edge);
       }
     }
