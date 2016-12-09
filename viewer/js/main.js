@@ -4,7 +4,7 @@
 
 var settings = settings || {};
 settings.SCALE = 1;
-settings.MARGIN = 1; // >= 1
+settings.MARGIN = 0.5;
 settings.PITCH = settings.MARGIN + 1;
 settings.COLOR_SET = {ROUGH: 0xffffff, SMOOTH: 0x1e90ff, MODULE: 0xffefd5, PIN: 0xfff095};
 settings.DEFAULT_COLOR = 0xffffff;
@@ -172,9 +172,10 @@ class SquarePyramid extends Polyhedron {
   constructor(pos, bottom_len, height, axis = 'z', reverse = false) {
     super(pos, new Size(bottom_len, bottom_len, height));
     let r = reverse ? Math.PI : 0;
-    if(axis === 'x')      this.rotation = [0, r - Math.PI / 2, 0];
-    else if(axis === 'y') this.rotation = [r - Math.PI / 2, 0, 0];
-    else if(axis === 'z') this.rotation = [r, 0, 0];
+    if(axis === 'x')      this.rotation = [Math.PI / 4, 0, r - Math.PI / 2];
+    else if(axis === 'y') this.rotation = [r, Math.PI / 4, 0];
+    else if(axis === 'z') this.rotation = [Math.PI / 2 - r, Math.PI / 4, 0];
+    else console.error('bad axis');
   }
 
   create_meshes(...visible) {
@@ -312,9 +313,11 @@ class Block extends Edge {}
 class Injector extends Edge {
   create_meshes(...visible) {
     let height = this.size[this.axis] / 2;
+    let pos_a = this.pos.sub(this.size[this.axis] / 4, this.axis);
+    let pos_b = this.pos.add(this.size[this.axis] / 4, this.axis);
     let opposite_pos = this.pos.add(this.size[this.axis], this.axis);
-    let pyramid_a = new SquarePyramid(this.pos, 1, height, this.axis);
-    let pyramid_b = new SquarePyramid(opposite_pos, 1, height, this.axis, true);
+    let pyramid_a = new SquarePyramid(pos_a, 1, height, this.axis);
+    let pyramid_b = new SquarePyramid(pos_b, 1, height, this.axis, true);
     return [...pyramid_a.create_meshes(...visible),
             ...pyramid_b.create_meshes(...visible)];
   }
