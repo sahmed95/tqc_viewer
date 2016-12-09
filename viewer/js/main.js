@@ -4,7 +4,7 @@
 
 var settings = settings || {};
 settings.SCALE = 1;
-settings.MARGIN = 0.5;
+settings.MARGIN = 1.5;
 settings.PITCH = settings.MARGIN + 1;
 settings.COLOR_SET = {ROUGH: 0xffffff, SMOOTH: 0x1e90ff, MODULE: 0xffefd5, PIN: 0xfff095};
 settings.DEFAULT_COLOR = 0xffffff;
@@ -312,14 +312,35 @@ class Block extends Edge {}
 
 class Injector extends Edge {
   create_meshes(...visible) {
-    let height = this.size[this.axis] / 2;
-    let pos_a = this.pos.sub(this.size[this.axis] / 4, this.axis);
-    let pos_b = this.pos.add(this.size[this.axis] / 4, this.axis);
-    let opposite_pos = this.pos.add(this.size[this.axis], this.axis);
-    let pyramid_a = new SquarePyramid(pos_a, 1, height, this.axis);
-    let pyramid_b = new SquarePyramid(pos_b, 1, height, this.axis, true);
-    return [...pyramid_a.create_meshes(...visible),
-            ...pyramid_b.create_meshes(...visible)];
+    if(settings.MARGIN < 1.5) {
+      return this.create_pyramid_meshes_(this.size[this.axis] / 2, ...visible);
+    }
+    return [
+      ...this.create_pyramid_meshes_((this.size[this.axis] - 2) / 2, ...visible),
+      ...this.create_rectangular_meshes_(...visible)
+    ];
+  }
+
+  create_pyramid_meshes_(size, ...visible) {
+    let pos_a = this.pos.sub(size / 2, this.axis);
+    let pos_b = this.pos.add(size / 2, this.axis);
+    let pyramid_a = new SquarePyramid(pos_a, 1, size, this.axis);
+    let pyramid_b = new SquarePyramid(pos_b, 1, size, this.axis, true);
+    return [
+      ...pyramid_a.create_meshes(...visible),
+      ...pyramid_b.create_meshes(...visible)
+    ];
+  }
+
+  create_rectangular_meshes_(...visible) {
+    let pos_a = this.vertices[0].pos.add(1, this.axis);
+    let pos_b = this.vertices[1].pos.sub(1, this.axis);
+    let rectangular_a = new Rectangular(pos_a, new Size(1, 1, 1));
+    let rectangular_b = new Rectangular(pos_b, new Size(1, 1, 1));
+    return [
+      ...rectangular_a.create_meshes(...visible),
+      ...rectangular_b.create_meshes(...visible)
+    ]
   }
 }
 
