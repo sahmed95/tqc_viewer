@@ -2,21 +2,40 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>TQC Viewer</title>
+
+<title>TQC viewer</title>
+
+<script src="js/jquery/jquery.min.js"></script>
+<script src="js/tether/tether.min.js"></script>
+<script src="js/bootstrap/bootstrap.min.js"></script>
+
 <script src="js/main.js"></script>
 <script src="js/tqc/tqc.js"></script>
 <script src="js/tqc/settings.js"></script>
 <script src="js/three/three.min.js"></script>
 <script src="js/three/OrbitControls.js"></script>
+
+<link rel="stylesheet" href="css/main.css">
+<link rel="stylesheet" href="css/bootstrap/bootstrap.min.css">
 </head>
 <body>
 
-<div id="input">
-  <input type="button" value="読込" onclick="handleFileSelect()" />
-  <input type="file" id="file" accept=".json" />
-</div>
+<nav class="navbar navbar-dark navbar-fixed-top bg-inverse" id="drop-zone-wrapper">
+  <button type="button" class="navbar-toggler hidden-sm-up" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation"></button>
+  <a class="navbar-brand" href="index.html">TQC viewer</a>
+  <div id="navbar">
+    <nav class="nav navbar-nav float-xs-left">
+      <a class="nav-item nav-link" href="#">Samples</a>
+      <a class="nav-item nav-link" href="#">Settings</a>
+      <a class="nav-item nav-link" href="#">Help</a>
+    </nav>
+  </div>
+</nav>
 
-<div id="canvas""></div>
+<div id="drop-zone">Please drag and drop the files.</div>
+<input type="file" id="file-selector" style="visibility: hidden;" accept=".json" />
+
+<div id="canvas"></div>
 
 </body>
 </html>
