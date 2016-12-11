@@ -36,6 +36,13 @@ var main = function(data) {
   })();
 };
 
+var prepareCanvas = function() {
+  $('#drop-zone').hide();
+  $('#file-selector').hide();
+  $('#reset-button').show();
+  $('#canvas').show();
+};
+
 $(function() {
   let dropZone = $('#drop-zone');
   let fileSelector = $('#file-selector');
@@ -45,7 +52,7 @@ $(function() {
     event.preventDefault();
     event.stopPropagation();
     return false;
-  }
+  };
 
   // dragenter, dragover イベントのデフォルト処理をキャンセル
   dropZone.on('dragenter', cancelEvent);
@@ -55,7 +62,7 @@ $(function() {
   let openFileSelectionDialog = function(event) {
     fileSelector.click();
     return cancelEvent(event);
-  }
+  };
 
   // click イベントをファイル選択ダイアログの表示に変更
   dropZone.on('click', openFileSelectionDialog);
@@ -65,14 +72,13 @@ $(function() {
     let fileReader = new FileReader();
     fileReader.onload = function(event) {
       // event.target.result に読み込んだファイルの内容が入る
-      dropZone.hide();
-      fileSelector.hide();
+      prepareCanvas();
       let json = event.target.result;
       let data = JSON.parse(json);
       main(data);
-    }
+    };
     fileReader.readAsText(file);
-  }
+  };
 
   // ドロップ時のイベントハンドラの設定
   let handleDroppedFile = function(event) {
@@ -81,7 +87,7 @@ $(function() {
     // デフォルトの処理をキャンセル
     cancelEvent(event);
     return false;
-  }
+  };
 
   // 選択時のイベントハンドラの設定
   let handleSelectedFile = function(event) {
@@ -91,23 +97,70 @@ $(function() {
     // デフォルトの処理をキャンセル
     cancelEvent(event);
     return false;
-  }
+  };
 
   // ドロップ時のイベントハンドラの設定
   dropZone.on('drop', handleDroppedFile);
   fileSelector.on('change', handleSelectedFile);
 });
 
-function loadFile(fileName){
-  alert(fileName);
-  let httpObj = new XMLHttpRequest();
-  httpObj.open('GET',fileName+"?"+(new Date()).getTime(),true);
-  // ?以降はキャッシュされたファイルではなく、毎回読み込むためのもの
-  httpObj.send(null);
-  httpObj.onreadystatechange = function(){
-    consle.info(httpObj.readyState);
-    if ( (httpObj.readyState == 4) && (httpObj.status == 200) ){
-      alert(responseText);
-    }
+var loadFile = function(fileName) {
+  $.getJSON(fileName, function(data) {
+      prepareCanvas();
+      main(data);
+  });
+};
+
+var setForm = function(settings) {
+  $('#margin-setting').val(settings.MARGIN);
+  $('#color-rough-setting').val(settings.COLOR_SET.ROUGH);
+  $('#color-smooth-setting').val(settings.COLOR_SET.SMOOTH);
+};
+
+$(function() {
+  $('#settings-modal').on('show.bs.modal', setForm.bind(null, settings));
+});
+
+var showSettingsModal = function() {
+  $('#settings-modal').modal();
+};
+
+var hideSettingsModal = function() {
+  $('#settings-modal').modal('hide');
+};
+
+var loadSettings = function() {
+  let storage = sessionStorage;
+
+  let margin = storage.getItem('settings.MARGIN');
+  let color_set_rough = storage.getItem('settings.COLOR_SET.ROUGH');
+  let color_set_smooth = storage.getItem('settings.COLOR_SET.SMOOTH');
+
+  if(margin) {
+    settings.MARGIN = margin;
+    settings.PITCH = Number(settings.MARGIN) + 1;
   }
-}
+  if(color_set_rough) settings.COLOR_SET.ROUGH = color_set_rough;
+  if(color_set_smooth) settings.COLOR_SET.SMOOTH = color_set_smooth;
+};
+
+var saveSettings = function() {
+  let storage = sessionStorage;
+
+  storage.setItem('settings.MARGIN', $('#margin-setting').val());
+  storage.setItem('settings.COLOR_SET.ROUGH', document.getElementById("color-rough-setting").value);
+  storage.setItem('settings.COLOR_SET.SMOOTH', document.getElementById("color-smooth-setting").value);
+
+  loadSettings();
+};
+
+var defaultSettings = {};
+
+var loadDefaultSettings = function() {
+  setForm(defaultSettings);
+};
+
+$(document).ready(function() {
+  defaultSettings = $.extend(true, {}, settings);
+  loadSettings();
+});
