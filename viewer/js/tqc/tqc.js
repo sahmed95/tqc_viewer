@@ -128,7 +128,7 @@ class Pos extends Vector3D {
 }
 
 class Polyhedron {
-  constructor(pos, size) {
+  constructor(pos, size, color, transparent, opacity) {
     this.pos = pos.clone();
     this.size = size.clone();
   }
