@@ -115,6 +115,7 @@ var setForm = function(settings) {
   $('#margin-setting').val(settings.MARGIN);
   $('#color-rough-setting').val(settings.COLOR_SET.ROUGH);
   $('#color-smooth-setting').val(settings.COLOR_SET.SMOOTH);
+  if(settings.DISPLAY_EDGES_FLAG) $('#display-edges-setting').prop('checked', true);
 };
 
 $(function() {
@@ -130,11 +131,12 @@ var hideSettingsModal = function() {
 };
 
 var loadSettings = function() {
-  let storage = sessionStorage;
+  let storage = localStorage;
 
   let margin = storage.getItem('settings.MARGIN');
   let color_set_rough = storage.getItem('settings.COLOR_SET.ROUGH');
   let color_set_smooth = storage.getItem('settings.COLOR_SET.SMOOTH');
+  let display_edges_flag = storage.getItem('settings.DISPLAY_EDGES_FLAG');
 
   if(margin) {
     settings.MARGIN = margin;
@@ -142,14 +144,16 @@ var loadSettings = function() {
   }
   if(color_set_rough) settings.COLOR_SET.ROUGH = color_set_rough;
   if(color_set_smooth) settings.COLOR_SET.SMOOTH = color_set_smooth;
+  if(display_edges_flag) settings.DISPLAY_EDGES_FLAG = Number(display_edges_flag);
 };
 
 var saveSettings = function() {
-  let storage = sessionStorage;
+  let storage = localStorage;
 
   storage.setItem('settings.MARGIN', $('#margin-setting').val());
   storage.setItem('settings.COLOR_SET.ROUGH', document.getElementById("color-rough-setting").value);
   storage.setItem('settings.COLOR_SET.SMOOTH', document.getElementById("color-smooth-setting").value);
+  storage.setItem('settings.DISPLAY_EDGES_FLAG', $('[id=display-edges-setting]:checked').val());
 
   loadSettings();
 };
