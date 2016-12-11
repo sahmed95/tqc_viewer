@@ -131,13 +131,31 @@ class Polyhedron {
   constructor(pos, size, color, transparent, opacity) {
     this.pos = pos.clone();
     this.size = size.clone();
+    this.set_visible(color, transparent, opacity);
   }
 
   create_meshes(geometry, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
+    if(this.color != undefined) color = this.color;
+    if(this.transparent != undefined) transparent = this.transparent;
+    if(this.opacity != undefined) opacity = this.opacity;
     let material = new THREE.MeshPhongMaterial({color: color, transparent: transparent, opacity: opacity});
     let mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...this.pos.mul(settings.SCALE).to_array());
     return [mesh];
+  }
+
+  get_visible() {
+    let visible = [];
+    if(this.color != undefined) visible.push(this.color);
+    if(this.transparent != undefined) visible.push(this.transparent);
+    if(this.opacity != undefined) visible.push(this.opacity);
+    return visible;
+  }
+
+  set_visible(color, transparent, opacity) {
+    if(color != undefined) this.color = color;
+    if(transparent != undefined) this.transparent = transparent;
+    if(opacity != undefined) this.opacity = opacity;
   }
 
   clone() {
@@ -157,8 +175,8 @@ class Rectangular extends Polyhedron {
 }
 
 class SquarePyramid extends Polyhedron {
-  constructor(pos, bottom_len, height, axis = 'z', reverse = false) {
-    super(pos, new Size(bottom_len, bottom_len, height));
+  constructor(pos, bottom_len, height, axis = 'z', reverse = false, ...visible) {
+    super(pos, new Size(bottom_len, bottom_len, height), ...visible);
     let r = reverse ? Math.PI : 0;
     if(axis === 'x')      this.rotation = [Math.PI / 4, 0, r - Math.PI / 2];
     else if(axis === 'y') this.rotation = [r, Math.PI / 4, 0];
@@ -187,9 +205,9 @@ class Defect extends Rectangular {
 }
 
 class Vertex extends Defect {
-  constructor(pos) {
+  constructor(pos, ...visible) {
     let size = new Size(1, 1, 1);
-    super(pos.mul(settings.PITCH), size);
+    super(pos.mul(settings.PITCH), size, ...visible);
   }
 
   get_next(base, n = 1) {
@@ -218,7 +236,7 @@ class Vertex extends Defect {
 }
 
 class Edge extends Defect {
-  constructor(vertex_a, vertex_b) {
+  constructor(vertex_a, vertex_b, ...visible) {
     // 引数がPosオブジェクトならVertexを生成
     for(let vertex of [vertex_a, vertex_b]) {
       if(!(vertex instanceof Vertex)) vertex = new Vertex(vertex);
@@ -230,7 +248,7 @@ class Edge extends Defect {
     let axis = Edge.get_axis_(vertex_a, vertex_b);
     let pos = Edge.get_pos_(vertex_a, vertex_b, axis);
     let size = Edge.get_size_(vertex_a, vertex_b, axis);
-    super(pos, size);
+    super(pos, size, ...visible);
     this.axis = axis;
     this.vertices = vertices;
   }
@@ -312,8 +330,8 @@ class Injector extends Edge {
   create_pyramid_meshes_(size, ...visible) {
     let pos_a = this.pos.sub(size / 2, this.axis);
     let pos_b = this.pos.add(size / 2, this.axis);
-    let pyramid_a = new SquarePyramid(pos_a, 1, size, this.axis);
-    let pyramid_b = new SquarePyramid(pos_b, 1, size, this.axis, true);
+    let pyramid_a = new SquarePyramid(pos_a, 1, size, this.axis, false, ...this.get_visible());
+    let pyramid_b = new SquarePyramid(pos_b, 1, size, this.axis, true, ...this.get_visible());
     return [
       ...pyramid_a.create_meshes(...visible),
       ...pyramid_b.create_meshes(...visible)
@@ -323,8 +341,8 @@ class Injector extends Edge {
   create_rectangular_meshes_(...visible) {
     let pos_a = this.vertices[0].pos.add(1, this.axis);
     let pos_b = this.vertices[1].pos.sub(1, this.axis);
-    let rectangular_a = new Rectangular(pos_a, new Size(1, 1, 1));
-    let rectangular_b = new Rectangular(pos_b, new Size(1, 1, 1));
+    let rectangular_a = new Rectangular(pos_a, new Size(1, 1, 1), ...this.get_visible());
+    let rectangular_b = new Rectangular(pos_b, new Size(1, 1, 1), ...this.get_visible());
     return [
       ...rectangular_a.create_meshes(...visible),
       ...rectangular_b.create_meshes(...visible)
@@ -339,9 +357,10 @@ class Cap extends Injector {
 }
 
 class LogicalQubit {
-  constructor(edges) {
+  constructor(edges, ...visible) {
     Object.assign(this, {edges})
     this.vertices = this.create_vertices_();
+    this.set_visible(...visible);
   }
 
   create_meshes(...visible) {
@@ -363,6 +382,12 @@ class LogicalQubit {
     }
     return vertices;
   }
+
+  set_visible(...visible) {
+    for(let polyhedron of [...this.edges, ...this.vertices]) {
+      polyhedron.set_visible(...visible);
+    }
+  }
 }
 
 class Rough extends LogicalQubit {
@@ -378,23 +403,15 @@ class Smooth extends LogicalQubit {
 }
 
 class Module extends Rectangular {
-  apply(scene) {
-    var mesh = this.createMesh();
-    scene.add(mesh);
-    if(dispEdges) {
-      var edge = new THREE.EdgesHelper(mesh, 0x000000);
-      scene.add(edge);
-    }
-  }
-
   create_meshes(color = settings.COLOR_SET.MODULE, transparent = undefined, opacity = undefined) {
     super.create_meshes(color, transparent, opacity);
   }
 };
 
 class Circuit {
-  constructor(logical_qubits, modules) {
+  constructor(logical_qubits, modules, ...visible) {
     Object.assign(this, {logical_qubits, modules});
+    this.set_visible(...visible);
   }
 
   create_meshes(...visible) {
@@ -405,6 +422,12 @@ class Circuit {
       }
     }
     return meshes;
+  }
+
+  set_visible(...visible) {
+    for(let elements of [...this.logical_qubits, ...this.modules]) {
+      elements.set_visible(...visible);
+    }
   }
 }
 
@@ -455,9 +478,19 @@ class CircuitCreator {
     for(let vertices of data) {
       let vertex_a = new Vertex(new Pos(...vertices[0]));
       let vertex_b = new Vertex(new Pos(...vertices[1]));
-      edges.push(new cls(vertex_a, vertex_b));
+      let visible = [];
+      if(vertices.length >= 3) visible = this.parse_visible_(vertices[2]);
+      edges.push(new cls(vertex_a, vertex_b, ...visible));
     }
     return edges;
+  }
+
+  static parse_visible_(data) {
+    let visible = [];
+    for(let property of ['color', 'transparent', 'opacity']) {
+      if(property in data) visible.push(data[property]);
+    }
+    return visible;
   }
 }
 
