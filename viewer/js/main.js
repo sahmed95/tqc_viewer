@@ -97,3 +97,17 @@ $(function() {
   dropZone.on('drop', handleDroppedFile);
   fileSelector.on('change', handleSelectedFile);
 });
+
+function loadFile(fileName){
+  alert(fileName);
+  let httpObj = new XMLHttpRequest();
+  httpObj.open('GET',fileName+"?"+(new Date()).getTime(),true);
+  // ?以降はキャッシュされたファイルではなく、毎回読み込むためのもの
+  httpObj.send(null);
+  httpObj.onreadystatechange = function(){
+    consle.info(httpObj.readyState);
+    if ( (httpObj.readyState == 4) && (httpObj.status == 200) ){
+      alert(responseText);
+    }
+  }
+}
