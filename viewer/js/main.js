@@ -34,7 +34,7 @@ var main = function(data) {
   //オブジェクト格納グローバル変数
   let targetList = CircuitDrawer.meshes;
 
-  let changed_meshes = [];
+  let changedMeshes = [];
   window.onmousedown = function(event) {
     if(event.target == renderer.domElement) {
       //マウス座標2D変換
@@ -51,19 +51,19 @@ var main = function(data) {
       // 始点, 向きベクトルを渡してレイを作成
       let ray = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
       // クリック判定
-      let intersect_meshes = ray.intersectObjects(targetList);
-      for(let mesh of changed_meshes) {
+      let intersectMeshes = ray.intersectObjects(targetList);
+      for(let mesh of changedMeshes) {
         let material = mesh.material;
         //console.info(material.default_color);
         material.color = material.default_color;
       }
-      changed_meshes = [];
+      changedMeshes = [];
       // クリックしていた場合
-      if(intersect_meshes.length > 0) {
-        let bit_id = intersect_meshes[0].object.bit_id;
+      if(intersectMeshes.length > 0) {
+        let bit_id = intersectMeshes[0].object.bit_id;
         console.log('Logical qubit ID: ' + bit_id);
-        changed_meshes = circuit.logical_qubits_map[bit_id].meshes;
-        for(let mesh of changed_meshes) {
+        changedMeshes = circuit.logical_qubits_map[bit_id].meshes;
+        for(let mesh of changedMeshes) {
           let material = mesh.material;
           material.default_color = material.color.clone();
           material.color.set(settings.COLOR_SET.SELECTED);
@@ -73,6 +73,7 @@ var main = function(data) {
   };
 
   (function renderLoop() {
+    directionalLight.position.set(0, -0.5, 0.7);
     requestAnimationFrame(renderLoop);
     controls.update();
     renderer.render(scene, camera);

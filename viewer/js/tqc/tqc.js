@@ -131,7 +131,7 @@ class Polyhedron {
   constructor(pos, size, color, transparent, opacity) {
     this.pos = pos.clone();
     this.size = size.clone();
-    this.set_visible(color, transparent, opacity);
+    this.set_visual(color, transparent, opacity);
   }
 
   create_meshes(geometry, color = settings.DEFAULT_COLOR, transparent = settings.DEFAULT_TRANSPARENT, opacity = settings.DEFAULT_OPACITY) {
@@ -144,15 +144,15 @@ class Polyhedron {
     return [mesh];
   }
 
-  get_visible() {
-    let visible = [];
-    if(this.color != undefined) visible.push(this.color);
-    if(this.transparent != undefined) visible.push(this.transparent);
-    if(this.opacity != undefined) visible.push(this.opacity);
-    return visible;
+  get_visual() {
+    let visual = [];
+    if(this.color != undefined) visual.push(this.color);
+    if(this.transparent != undefined) visual.push(this.transparent);
+    if(this.opacity != undefined) visual.push(this.opacity);
+    return visual;
   }
 
-  set_visible(color, transparent, opacity) {
+  set_visual(color, transparent, opacity) {
     if(color != undefined) this.color = color;
     if(transparent != undefined) this.transparent = transparent;
     if(opacity != undefined) this.opacity = opacity;
@@ -164,9 +164,9 @@ class Polyhedron {
 }
 
 class Rectangular extends Polyhedron {
-  create_meshes(...visible) {
+  create_meshes(...visual) {
     let geometry = new THREE.BoxGeometry(...this.size.mul(settings.SCALE).to_array());
-    return super.create_meshes(geometry, ...visible);
+    return super.create_meshes(geometry, ...visual);
   }
 
   clone() {
@@ -175,8 +175,8 @@ class Rectangular extends Polyhedron {
 }
 
 class SquarePyramid extends Polyhedron {
-  constructor(pos, bottom_len, height, axis = 'z', reverse = false, ...visible) {
-    super(pos, new Size(bottom_len, bottom_len, height), ...visible);
+  constructor(pos, bottom_len, height, axis = 'z', reverse = false, ...visual) {
+    super(pos, new Size(bottom_len, bottom_len, height), ...visual);
     let r = reverse ? Math.PI : 0;
     if(axis === 'x')      this.rotation = [Math.PI / 4, 0, r - Math.PI / 2];
     else if(axis === 'y') this.rotation = [r, Math.PI / 4, 0];
@@ -184,9 +184,9 @@ class SquarePyramid extends Polyhedron {
     else console.error('bad axis');
   }
 
-  create_meshes(...visible) {
+  create_meshes(...visual) {
     let geometry = new THREE.ConeGeometry(this.size.x * settings.SCALE / Math.SQRT2, this.size.z * settings.SCALE, 4);
-    let meshes = super.create_meshes(geometry, ...visible);
+    let meshes = super.create_meshes(geometry, ...visual);
     for(let mesh of meshes) {
       mesh.rotation.set(...this.rotation);
     }
@@ -205,9 +205,9 @@ class Defect extends Rectangular {
 }
 
 class Vertex extends Defect {
-  constructor(pos, ...visible) {
+  constructor(pos, ...visual) {
     let size = new Size(1, 1, 1);
-    super(pos.mul(settings.PITCH), size, ...visible);
+    super(pos.mul(settings.PITCH), size, ...visual);
   }
 
   get_next(base, n = 1) {
@@ -236,7 +236,7 @@ class Vertex extends Defect {
 }
 
 class Edge extends Defect {
-  constructor(vertex_a, vertex_b, ...visible) {
+  constructor(vertex_a, vertex_b, ...visual) {
     // 引数がPosオブジェクトならVertexを生成
     for(let vertex of [vertex_a, vertex_b]) {
       if(!(vertex instanceof Vertex)) vertex = new Vertex(vertex);
@@ -248,25 +248,14 @@ class Edge extends Defect {
     let axis = Edge.get_axis_(vertex_a, vertex_b);
     let pos = Edge.get_pos_(vertex_a, vertex_b, axis);
     let size = Edge.get_size_(vertex_a, vertex_b, axis);
-    super(pos, size, ...visible);
+    super(pos, size, ...visual);
     this.axis = axis;
     this.vertices = vertices;
   }
 
-  decompose_to_minimum_units() {
-    let decomposed_edges = [];
-    for(let vertex = this.vertices[0]; Vertex.compare(vertex, this.vertices[1]) === -1;) {
-      let next_vertex = vertex.get_next(this.axis);
-      decomposed_edges.push(new Edge(vertex, next_vertex));
-      console.assert(false, vertex.pos, next_vertex.pos);
-      vertex = next_vertex;
-    }
-    return decomposed_edges;
-  }
-
-  create_meshes(...visible) {
+  create_meshes(...visual) {
     let meshes = [];
-    meshes.push(...super.create_meshes(...visible));
+    meshes.push(...super.create_meshes(...visual));
     return meshes;
   }
 
@@ -300,14 +289,14 @@ class Edge extends Defect {
     return size;
   }
 
-  static create_edges(vertices, is_loop = false) {
+  static create_edges(cls, vertices, is_loop = false, ...visual) {
     let edges = [];
     for(let i = 0; i < vertices.length - 1; ++i) {
-      let edge = new Edge(vertices[i], vertices[i + 1]);
+      let edge = new cls(vertices[i], vertices[i + 1], ...visual);
       edges.push(edge);
     }
     if(is_loop) {
-      let edge = new Edge(vertices[vertices.length - 1], vertices[0]);
+      let edge = new cls(vertices[vertices.length - 1], vertices[0], ...visual);
       edges.push(edge);
     }
     return edges;
@@ -317,35 +306,35 @@ class Edge extends Defect {
 class Block extends Edge {}
 
 class Injector extends Edge {
-  create_meshes(...visible) {
+  create_meshes(...visual) {
     if(settings.MARGIN < 1.5) {
-      return this.create_pyramid_meshes_(this.size[this.axis] / 2, ...visible);
+      return this.create_pyramid_meshes_(this.size[this.axis] / 2, ...visual);
     }
     return [
-      ...this.create_pyramid_meshes_((this.size[this.axis] - 2) / 2, ...visible),
-      ...this.create_rectangular_meshes_(...visible)
+      ...this.create_pyramid_meshes_((this.size[this.axis] - 2) / 2, ...visual),
+      ...this.create_rectangular_meshes_(...visual)
     ];
   }
 
-  create_pyramid_meshes_(size, ...visible) {
+  create_pyramid_meshes_(size, ...visual) {
     let pos_a = this.pos.sub(size / 2, this.axis);
     let pos_b = this.pos.add(size / 2, this.axis);
-    let pyramid_a = new SquarePyramid(pos_a, 1, size, this.axis, false, ...this.get_visible());
-    let pyramid_b = new SquarePyramid(pos_b, 1, size, this.axis, true, ...this.get_visible());
+    let pyramid_a = new SquarePyramid(pos_a, 1, size, this.axis, false, ...this.get_visual());
+    let pyramid_b = new SquarePyramid(pos_b, 1, size, this.axis, true, ...this.get_visual());
     return [
-      ...pyramid_a.create_meshes(...visible),
-      ...pyramid_b.create_meshes(...visible)
+      ...pyramid_a.create_meshes(...visual),
+      ...pyramid_b.create_meshes(...visual)
     ];
   }
 
-  create_rectangular_meshes_(...visible) {
+  create_rectangular_meshes_(...visual) {
     let pos_a = this.vertices[0].pos.add(1, this.axis);
     let pos_b = this.vertices[1].pos.sub(1, this.axis);
-    let rectangular_a = new Rectangular(pos_a, new Size(1, 1, 1), ...this.get_visible());
-    let rectangular_b = new Rectangular(pos_b, new Size(1, 1, 1), ...this.get_visible());
+    let rectangular_a = new Rectangular(pos_a, new Size(1, 1, 1), ...this.get_visual());
+    let rectangular_b = new Rectangular(pos_b, new Size(1, 1, 1), ...this.get_visual());
     return [
-      ...rectangular_a.create_meshes(...visible),
-      ...rectangular_b.create_meshes(...visible)
+      ...rectangular_a.create_meshes(...visual),
+      ...rectangular_b.create_meshes(...visual)
     ]
   }
 }
@@ -357,18 +346,18 @@ class Cap extends Injector {
 }
 
 class LogicalQubit {
-  constructor(edges, id, ...visible) {
+  constructor(edges, id, ...visual) {
     Object.assign(this, {edges})
     this.vertices = this.create_vertices_();
     this.id = id;
-    this.set_visible(...visible);
+    this.set_visual(...visual);
   }
 
-  create_meshes(...visible) {
+  create_meshes(...visual) {
     let meshes = [];
     for(let defects of [this.edges, this.vertices]) {
       for(let defect of defects) {
-        meshes.push(...defect.create_meshes(...visible));
+        meshes.push(...defect.create_meshes(...visual));
       }
     }
     this.set_id_(meshes);
@@ -386,9 +375,9 @@ class LogicalQubit {
     return vertices;
   }
 
-  set_visible(...visible) {
+  set_visual(...visual) {
     for(let polyhedron of [...this.edges, ...this.vertices]) {
-      polyhedron.set_visible(...visible);
+      polyhedron.set_visual(...visual);
     }
   }
 
@@ -418,28 +407,28 @@ class Module extends Rectangular {
 };
 
 class Circuit {
-  constructor(logical_qubits, modules, ...visible) {
+  constructor(logical_qubits, modules, ...visual) {
     Object.assign(this, {logical_qubits, modules});
-    this.set_visible(...visible);
+    this.set_visual(...visual);
     this.logical_qubits_map = {};
     for(let logical_qubit of this.logical_qubits) {
       this.logical_qubits_map[logical_qubit.id] = logical_qubit;
     }
   }
 
-  create_meshes(...visible) {
+  create_meshes(...visual) {
     let meshes = [];
     for(let polyhedrons of [this.logical_qubits, this.modules]) {
       for(let polyhedron of polyhedrons) {
-        meshes.push(...polyhedron.create_meshes(...visible));
+        meshes.push(...polyhedron.create_meshes(...visual));
       }
     }
     return meshes;
   }
 
-  set_visible(...visible) {
+  set_visual(...visual) {
     for(let elements of [...this.logical_qubits, ...this.modules]) {
-      elements.set_visible(...visible);
+      elements.set_visual(...visual);
     }
   }
 }
@@ -489,22 +478,32 @@ class CircuitCreator {
 
   static create_edges_(data = [], cls) {
     let edges = [];
-    for(let vertices of data) {
-      let vertex_a = new Vertex(new Pos(...vertices[0]));
-      let vertex_b = new Vertex(new Pos(...vertices[1]));
-      let visible = [];
-      if(settings.ENABLED_OVERWRITE_COLORS && vertices.length >= 3) visible = this.parse_visible_(vertices[2]);
-      edges.push(new cls(vertex_a, vertex_b, ...visible));
+    for(let raw_vertices_data of data) {
+      let vertices_data = [];
+      if(Array.isArray(raw_vertices_data))     vertices_data = raw_vertices_data;
+      else if('vertices' in raw_vertices_data) vertices_data = raw_vertices_data.vertices;
+      let vertices = [];
+      for(let vertex_data of vertices_data) {
+        vertices.push(new Vertex(new Pos(...vertex_data)));
+      }
+      //let vertex_a = new Vertex(new Pos(...vertices[0]));
+      //let vertex_b = new Vertex(new Pos(...vertices[1]));
+      let visual = [];
+      if(settings.ENABLED_OVERWRITE_COLORS && 'visual' in raw_vertices_data) {
+        visual = this.parse_visual_(raw_vertices_data.visual);
+      }
+      //edges.push(new cls(vertex_a, vertex_b, ...visual));
+      edges.push(...cls.create_edges(cls, vertices, false, ...visual));
     }
     return edges;
   }
 
-  static parse_visible_(data) {
-    let visible = [];
+  static parse_visual_(data) {
+    let visual = [];
     for(let property of ['color', 'transparent', 'opacity']) {
-      if(property in data) visible.push(data[property]);
+      if(property in data) visual.push(data[property]);
     }
-    return visible;
+    return visual;
   }
 }
 
@@ -515,7 +514,7 @@ class CircuitDrawer {
       scene.add(mesh);
       if(settings.DISPLAY_EDGES_FLAG) {
         let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
-        let material = new THREE.LineBasicMaterial({color: 0x666666});
+        let material = new THREE.LineBasicMaterial({color: settings.COLOR_SET.EDGE});
         let edge = new THREE.LineSegments(geometry, material);
         mesh.add(edge);
       }
