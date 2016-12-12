@@ -12,7 +12,7 @@ var main = function(data) {
   let camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
   camera.position.set(0, -40, 35);
 
-  let renderer = new THREE.WebGLRenderer();
+  let renderer = new THREE.WebGLRenderer({antialias: settings.ENABLED_ANTIALIAS});
   renderer.setSize(width, height);
   renderer.setClearColor(new THREE.Color(0xffffff));
   document.getElementById('canvas').appendChild(renderer.domElement);
@@ -27,50 +27,55 @@ var main = function(data) {
 
   CircuitDrawer.draw(circuit, scene);
 
-  let controls = new THREE.OrbitControls(camera);
+  let clickEvent = function(intersectedFunc, constantFunc = () => {}) {
+    let mouse = {x: 0, y: 0};
+    let targetMeshes = CircuitDrawer.meshes;
 
-  //マウスのグローバル変数
-  let mouse = {x: 0, y: 0};
-  //オブジェクト格納グローバル変数
-  let targetList = CircuitDrawer.meshes;
+    return function(event) {
+      if(event.target == renderer.domElement) {
+        let rect = event.target.getBoundingClientRect();
+        mouse.x =  event.clientX - rect.left;
+        mouse.y =  event.clientY - rect.top;
+        mouse.x =  (mouse.x / width) * 2 - 1;
+        mouse.y = -(mouse.y / height) * 2 + 1;
+        let vector = new THREE.Vector3(mouse.x, mouse.y ,1);
+        vector.unproject(camera);
+        let ray = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
+        let intersectMeshes = ray.intersectObjects(targetMeshes);
+        constantFunc(intersectMeshes);
+        if(intersectMeshes.length > 0) intersectedFunc(intersectMeshes);
+      }
+    };
+  };
 
-  let changedMeshes = [];
-  window.onmousedown = function(event) {
-    if(event.target == renderer.domElement) {
-      //マウス座標2D変換
-      let rect = event.target.getBoundingClientRect();
-      mouse.x =  event.clientX - rect.left;
-      mouse.y =  event.clientY - rect.top;
-      //マウス座標3D変換 width（横）やheight（縦）は画面サイズ
-      mouse.x =  (mouse.x / width) * 2 - 1;
-      mouse.y = -(mouse.y / height) * 2 + 1;
-      // マウスベクトル
-      let vector = new THREE.Vector3(mouse.x, mouse.y ,1);
-      // vector はスクリーン座標系なので, オブジェクトの座標系に変換
-      vector.unproject(camera);
-      // 始点, 向きベクトルを渡してレイを作成
-      let ray = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
-      // クリック判定
-      let intersectMeshes = ray.intersectObjects(targetList);
+  let selectBitEvent = function() {
+    let changedMeshes = [];
+
+    this.constant = function() {
       for(let mesh of changedMeshes) {
         let material = mesh.material;
-        //console.info(material.default_color);
-        material.color = material.default_color;
+        material.color = material.defaultColor;
       }
       changedMeshes = [];
-      // クリックしていた場合
-      if(intersectMeshes.length > 0) {
-        let bit_id = intersectMeshes[0].object.bit_id;
-        console.log('Logical qubit ID: ' + bit_id);
-        changedMeshes = circuit.logical_qubits_map[bit_id].meshes;
-        for(let mesh of changedMeshes) {
-          let material = mesh.material;
-          material.default_color = material.color.clone();
-          material.color.set(settings.COLOR_SET.SELECTED);
-        }
+    };
+
+    this.intersected = function(intersectMeshes) {
+      if(!('bit_id' in intersectMeshes[0].object)) return;
+      let bitId = intersectMeshes[0].object.bit_id;
+      console.log('Logical qubit ID: ' + bitId);
+      changedMeshes = circuit.logical_qubits_map[bitId].meshes;
+      for(let mesh of changedMeshes) {
+        let material = mesh.material;
+        material.defaultColor = material.color.clone();
+        material.color.set(settings.COLOR_SET.SELECTED);
       }
-    }
+    };
   };
+
+  let event = new selectBitEvent();
+  window.onmousedown = clickEvent(event.intersected, event.constant);
+
+  let controls = new THREE.OrbitControls(camera);
 
   (function renderLoop() {
     directionalLight.position.set(0, -0.5, 0.7);
@@ -195,6 +200,7 @@ var setSettingsForm = function(settings) {
   $('#color-smooth-setting').val(settings.COLOR_SET.SMOOTH);
   if(settings.ENABLED_OVERWRITE_COLORS) $('#color-overwrite-setting').prop('checked', true);
   if(settings.DISPLAY_EDGES_FLAG) $('#display-edges-setting').prop('checked', true);
+  if(settings.ENABLED_ANTIALIAS) $('#antialias-setting').prop('checked', true);
 };
 
 $(function() {
@@ -217,6 +223,7 @@ var loadSettings = function() {
   let color_set_smooth = storage.getItem('settings.COLOR_SET.SMOOTH');
   let enabed_overwrite_colors = storage.getItem('settings.ENABLED_OVERWRITE_COLORS');
   let display_edges_flag = storage.getItem('settings.DISPLAY_EDGES_FLAG');
+  let antialias = storage.getItem('settings.ENABLED_ANTIALIAS');
 
   if(margin) {
     settings.MARGIN = margin;
@@ -226,6 +233,7 @@ var loadSettings = function() {
   if(color_set_smooth) settings.COLOR_SET.SMOOTH = color_set_smooth;
   if(enabed_overwrite_colors) settings.ENABLED_OVERWRITE_COLORS = Number(enabed_overwrite_colors);
   if(display_edges_flag) settings.DISPLAY_EDGES_FLAG = Number(display_edges_flag);
+  if(antialias) settings.ENABLED_ANTIALIAS = Number(antialias);
 };
 
 var saveSettings = function() {
@@ -236,6 +244,7 @@ var saveSettings = function() {
   storage.setItem('settings.COLOR_SET.SMOOTH', document.getElementById("color-smooth-setting").value);
   storage.setItem('settings.ENABLED_OVERWRITE_COLORS', $('[id=color-overwrite-setting]:checked').val());
   storage.setItem('settings.DISPLAY_EDGES_FLAG', $('[id=display-edges-setting]:checked').val());
+  storage.setItem('settings.ENABLED_ANTIALIAS', $('[id=antialias-setting]:checked').val());
 
   loadSettings();
 };
