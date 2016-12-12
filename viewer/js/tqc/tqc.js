@@ -357,9 +357,10 @@ class Cap extends Injector {
 }
 
 class LogicalQubit {
-  constructor(edges, ...visible) {
+  constructor(edges, id, ...visible) {
     Object.assign(this, {edges})
     this.vertices = this.create_vertices_();
+    this.id = id;
     this.set_visible(...visible);
   }
 
@@ -370,6 +371,8 @@ class LogicalQubit {
         meshes.push(...defect.create_meshes(...visible));
       }
     }
+    this.set_id_(meshes);
+    this.meshes = meshes;
     return meshes;
   }
 
@@ -386,6 +389,12 @@ class LogicalQubit {
   set_visible(...visible) {
     for(let polyhedron of [...this.edges, ...this.vertices]) {
       polyhedron.set_visible(...visible);
+    }
+  }
+
+  set_id_(meshes) {
+    for(let mesh of meshes) {
+      mesh.bit_id = this.id;
     }
   }
 }
@@ -412,6 +421,10 @@ class Circuit {
   constructor(logical_qubits, modules, ...visible) {
     Object.assign(this, {logical_qubits, modules});
     this.set_visible(...visible);
+    this.logical_qubits_map = {};
+    for(let logical_qubit of this.logical_qubits) {
+      this.logical_qubits_map[logical_qubit.id] = logical_qubit;
+    }
   }
 
   create_meshes(...visible) {
@@ -446,7 +459,8 @@ class CircuitCreator {
       let caps      = this.create_caps(logical_qubit_data.caps);
       let type = logical_qubit_data.type;
       let cls = type === 'rough' ? Rough : Smooth;
-      logical_qubits.push(new cls([...blocks, ...injectors, ...caps]));
+      let id = logical_qubit_data.id;
+      logical_qubits.push(new cls([...blocks, ...injectors, ...caps], id));
     }
     return logical_qubits;
   }
@@ -496,7 +510,8 @@ class CircuitCreator {
 
 class CircuitDrawer {
   static draw(circuit, scene) {
-    for(let mesh of circuit.create_meshes()) {
+    this.meshes = circuit.create_meshes();
+    for(let mesh of this.meshes) {
       scene.add(mesh);
       if(settings.DISPLAY_EDGES_FLAG) {
         let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry

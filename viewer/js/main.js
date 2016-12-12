@@ -29,6 +29,49 @@ var main = function(data) {
 
   let controls = new THREE.OrbitControls(camera);
 
+  //マウスのグローバル変数
+  let mouse = {x: 0, y: 0};
+  //オブジェクト格納グローバル変数
+  let targetList = CircuitDrawer.meshes;
+
+  let changed_meshes = [];
+  window.onmousedown = function(event) {
+    if(event.target == renderer.domElement) {
+      //マウス座標2D変換
+      let rect = event.target.getBoundingClientRect();
+      mouse.x =  event.clientX - rect.left;
+      mouse.y =  event.clientY - rect.top;
+      //マウス座標3D変換 width（横）やheight（縦）は画面サイズ
+      mouse.x =  (mouse.x / width) * 2 - 1;
+      mouse.y = -(mouse.y / height) * 2 + 1;
+      // マウスベクトル
+      let vector = new THREE.Vector3(mouse.x, mouse.y ,1);
+      // vector はスクリーン座標系なので, オブジェクトの座標系に変換
+      vector.unproject(camera);
+      // 始点, 向きベクトルを渡してレイを作成
+      let ray = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
+      // クリック判定
+      let intersect_meshes = ray.intersectObjects(targetList);
+      for(let mesh of changed_meshes) {
+        let material = mesh.material;
+        //console.info(material.default_color);
+        material.color = material.default_color;
+      }
+      changed_meshes = [];
+      // クリックしていた場合
+      if(intersect_meshes.length > 0) {
+        let bit_id = intersect_meshes[0].object.bit_id;
+        console.log('Logical qubit ID: ' + bit_id);
+        changed_meshes = circuit.logical_qubits_map[bit_id].meshes;
+        for(let mesh of changed_meshes) {
+          let material = mesh.material;
+          material.default_color = material.color.clone();
+          material.color.set(settings.COLOR_SET.SELECTED);
+        }
+      }
+    }
+  };
+
   (function renderLoop() {
     requestAnimationFrame(renderLoop);
     controls.update();
