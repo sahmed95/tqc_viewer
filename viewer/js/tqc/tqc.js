@@ -479,7 +479,7 @@ class CircuitCreator {
       let vertex_a = new Vertex(new Pos(...vertices[0]));
       let vertex_b = new Vertex(new Pos(...vertices[1]));
       let visible = [];
-      if(vertices.length >= 3) visible = this.parse_visible_(vertices[2]);
+      if(settings.ENABLED_OVERWRITE_COLORS && vertices.length >= 3) visible = this.parse_visible_(vertices[2]);
       edges.push(new cls(vertex_a, vertex_b, ...visible));
     }
     return edges;

@@ -11,6 +11,7 @@ settings.DEFAULT_OPACITY = 0.3;
 settings.DISPLAY_EDGES_FLAG = true;
 settings.DIRECTIONAL_LIGHT_LEVEL = 0.7;
 settings.AMBIENT_LIGHT_LEVEL = 0.4;
+settings.ENABLED_OVERWRITE_COLORS = true;
 
 /*
 export const SCALE = 1;
