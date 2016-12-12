@@ -111,7 +111,41 @@ var loadFile = function(fileName) {
   });
 };
 
-var setForm = function(settings) {
+var setSamples = function(settings) {
+  let sampleList = 'samples/list.json';
+
+  let markup = '<div class="row">' +
+  '<div class="col-md-8"><h6><a href="#" onclick="loadFile(\'samples/${file}\'); hideSamplesModal()">${text}</a></h6></div>' +
+  '<div class="col-md-1 offset-md-3">' +
+    '<a href="samples/${file}" download="${file}"><img src="images/octicons/cloud-download.svg" /></a>' +
+  '</div>' +
+  '</div>';
+
+  let navSample = $('#nav-samples');
+
+  $.template('sampleTemplate', markup);
+
+  // サンプルリストの取得に失敗した場合はファイル選択ダイアログ表示
+  $.getJSON(sampleList, function(data) {
+    $.tmpl("sampleTemplate", data.samples).appendTo("#sample-list");
+  })
+  .done(function(json) {
+    navSample.on('click', showSamplesModal);
+  })
+  .fail(function(jqXHR, textStatus, errorThrown) {
+    navSample.on('click', function() {$('#file-selector').click();});
+  });
+};
+
+var showSamplesModal = function() {
+  $('#samples-modal').modal();
+};
+
+var hideSamplesModal = function() {
+  $('#samples-modal').modal('hide');
+};
+
+var setSettingsForm = function(settings) {
   $('#margin-setting').val(settings.MARGIN);
   $('#color-rough-setting').val(settings.COLOR_SET.ROUGH);
   $('#color-smooth-setting').val(settings.COLOR_SET.SMOOTH);
@@ -119,7 +153,7 @@ var setForm = function(settings) {
 };
 
 $(function() {
-  $('#settings-modal').on('show.bs.modal', setForm.bind(null, settings));
+  $('#settings-modal').on('show.bs.modal', setSettingsForm.bind(null, settings));
 });
 
 var showSettingsModal = function() {
@@ -161,10 +195,11 @@ var saveSettings = function() {
 var defaultSettings = {};
 
 var loadDefaultSettings = function() {
-  setForm(defaultSettings);
+  setSettingsForm(defaultSettings);
 };
 
 $(document).ready(function() {
+  setSamples();
   defaultSettings = $.extend(true, {}, settings);
   loadSettings();
 });

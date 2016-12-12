@@ -6,6 +6,7 @@
 <title>TQC viewer</title>
 
 <script src="js/jquery/jquery.min.js"></script>
+<script src="js/jquery-tmpl/jquery.tmpl.min.js"></script>
 <script src="js/tether/tether.min.js"></script>
 <script src="js/bootstrap/bootstrap.min.js"></script>
 
@@ -25,11 +26,8 @@
 <nav class="navbar navbar-dark navbar-fixed-top bg-inverse">
   <a class="navbar-brand" href="index.html">TQC viewer</a>
   <ul class="nav navbar-nav">
-    <li class="nav-item dropdown">
-      <a class="nav-link dropdown-toggle" href="http://example.com" id="supportedContentDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Samples</a>
-      <div class="dropdown-menu" aria-labelledby="supportedContentDropdown">
-        <a class="dropdown-item" href="#" onclick="loadFile('samples/y_state_distillation.json')">Y state distillation</a>
-      </div>
+    <li class="nav-item">
+      <a id="nav-samples" class="nav-link" href="#">Samples</a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="#" onclick="showSettingsModal()">Settings</a>
@@ -45,8 +43,30 @@
 <!-- Canvas -->
 <div id="canvas" style="display: none;"></div>
 
+<!-- Samples modal -->
+<div class="modal fade" id="samples-modal" tabindex="-1" role="dialog" aria-labelledby="samples-modal" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title" id="settings-modal-label">Samples</h4>
+      </div>
+      <div class="modal-body">
+        <div class="container-fluid">
+          <div id="sample-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Settings modal -->
-<div class="modal fade" id="settings-modal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+<div class="modal fade" id="settings-modal" tabindex="-1" role="dialog" aria-labelledby="settings-modal" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
