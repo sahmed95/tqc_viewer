@@ -499,8 +499,10 @@ class CircuitDrawer {
     for(let mesh of circuit.create_meshes()) {
       scene.add(mesh);
       if(settings.DISPLAY_EDGES_FLAG) {
-        let edge = new THREE.EdgesHelper(mesh, 0x000000, 0.01);
-        scene.add(edge);
+        let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
+        let material = new THREE.LineBasicMaterial({color: 0x666666});
+        let edge = new THREE.LineSegments(geometry, material);
+        mesh.add(edge);
       }
     }
   }
