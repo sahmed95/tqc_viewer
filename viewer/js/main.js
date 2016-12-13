@@ -19,7 +19,14 @@ var main = function(data) {
 
   let directionalLight = new THREE.DirectionalLight(0xffffff, settings.DIRECTIONAL_LIGHT_LEVEL);
   let ambientLight = new THREE.AmbientLight(0xffffff, settings.AMBIENT_LIGHT_LEVEL);
-  directionalLight.position.set(0, -0.5, 0.7);
+
+  let setDirectionalLight = function(from, to) {
+    directionalLight.position.copy(from).sub(to).normalize();
+    directionalLight.position.y += 0.4;
+    directionalLight.position.normalize();
+  };
+  //directionalLight.position.set(0, -0.5, 0.7);
+
   scene.add(directionalLight);
   scene.add(ambientLight);
 
@@ -78,7 +85,7 @@ var main = function(data) {
   let controls = new THREE.OrbitControls(camera);
 
   (function renderLoop() {
-    directionalLight.position.set(0, -0.5, 0.7);
+    setDirectionalLight(camera.position, controls.target);
     requestAnimationFrame(renderLoop);
     controls.update();
     renderer.render(scene, camera);
@@ -155,8 +162,8 @@ $(function() {
 
 var loadFile = function(fileName) {
   $.getJSON(fileName, function(data) {
-      prepareCanvas();
-      main(data);
+    prepareCanvas();
+    main(data);
   });
 };
 
