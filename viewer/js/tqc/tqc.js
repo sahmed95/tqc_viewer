@@ -419,16 +419,20 @@ class Circuit {
   constructor(logical_qubits, modules, ...visual) {
     Object.assign(this, {logical_qubits, modules});
     this.set_visual(...visual);
-    this.logical_qubits_map = {};
-    for(let logical_qubit of this.logical_qubits) {
-      this.logical_qubits_map[logical_qubit.id] = logical_qubit;
-    }
   }
 
   create_meshes(...visual) {
     let meshes = [];
-    for(let polyhedron of [...this.logical_qubits, ...this.modules]) {
-      meshes.push(...polyhedron.create_meshes(...visual));
+    this.logical_qubit_meshes_map = {};
+    for(let logical_qubit of this.logical_qubits) {
+      let logical_qubit_meshes = logical_qubit.create_meshes(...visual);
+      meshes.push(...logical_qubit_meshes);
+      if(!(logical_qubit.id in this.logical_qubit_meshes_map)) this.logical_qubit_meshes_map[logical_qubit.id] = [];
+      this.logical_qubit_meshes_map[logical_qubit.id].push(...logical_qubit_meshes);
+    }
+    for(let module of this.modules) {
+      let module_meshes = module.create_meshes(...visual);
+      meshes.push(...module_meshes);
     }
     return meshes;
   }
@@ -515,20 +519,5 @@ class CircuitCreator {
       visual.push(data[property]);
     }
     return visual;
-  }
-}
-
-class CircuitRenderer {
-  static render(circuit, scene) {
-    this.meshes = circuit.create_meshes();
-    for(let mesh of this.meshes) {
-      scene.add(mesh);
-      if(settings.DISPLAY_EDGES_FLAG) {
-        let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
-        let material = new THREE.LineBasicMaterial({color: settings.COLOR_SET.EDGE});
-        let edge = new THREE.LineSegments(geometry, material);
-        mesh.add(edge);
-      }
-    }
   }
 }

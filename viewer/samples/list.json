@@ -1,6 +1,7 @@
 {
   "samples": [
     {"text": "Y state distillation", "file": "y_state_distillation.json"},
-    {"text": "A state distillation", "file": "a_state_distillation.json"}
+    {"text": "A state distillation", "file": "a_state_distillation.json"},
+    {"text": "Topological T gate",   "file": "topological_t_gate.json"}
   ]
 }

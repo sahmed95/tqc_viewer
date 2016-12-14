@@ -160,7 +160,7 @@ var main = function(data) {
       let bitId = intersectMesh.bit_id;
       if(bitId === previousBitId) return;
       else {
-        clear(circuitRenderer.circuit.logical_qubits_map[bitId].meshes, bitId);
+        clear(circuitRenderer.circuit.logical_qubit_meshes_map[bitId], bitId);
         for(let mesh of changedMeshes) {
           let material = mesh.material;
           material.defaultColor = material.color.clone();
@@ -210,13 +210,21 @@ var main = function(data) {
   };
 
   let clickModuleEvent = function() {
+    let loadFile = function(moduleId) {
+      let fileName = 'samples/' + moduleId + '.json';
+      $.getJSON(fileName, function(data) {
+        circuitRenderer.rerender(data);
+      })
+      .fail(function(jqXHR, textStatus, errorThrown) {
+        console.error('Not found a module: ' + moduleId);
+      });
+    };
+
     this.intersected = function(intersectMeshes) {
       if(!('module_id' in intersectMeshes[0].object)) return;
       let moduleId = intersectMeshes[0].object.module_id;
-      if(!(moduleId in data)) {
-        console.error('Not found a module: ' + moduleId);
-      }
-      circuitRenderer.rerender(data[moduleId]);
+      if(moduleId in data) circuitRenderer.rerender(data[moduleId]);
+      else                 loadFile(moduleId);
     };
   };
 
