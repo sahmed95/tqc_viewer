@@ -1,13 +1,27 @@
 "use strict";
 
-var findCenterPosition = function(meshes) {
-  let max = new THREE.Vector3(0, 0, 0);
+var findMinPosition = function(meshes) {
   let min = new THREE.Vector3(0, 0, 0);
   for(let mesh of meshes) {
-    max.max(mesh.position);
     min.min(mesh.position);
   }
-  return max.add(min).divideScalar(2);
+  return min;
+};
+
+var findMaxPosition = function(meshes) {
+  let max = new THREE.Vector3(0, 0, 0);
+  for(let mesh of meshes) {
+    max.max(mesh.position);
+  }
+  return max;
+};
+
+var calculateSize = function(min, max) {
+  return max.clone().sub(min);
+};
+
+var calculateCenterPosition = function(min, max) {
+  return max.clone().add(min).divideScalar(2);
 };
 
 var main = function(data) {
@@ -20,7 +34,7 @@ var main = function(data) {
   let near   = 1;
   let far    = 1000;
   let camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-  camera.position.set(0, -40, 35);
+  camera.position.set(0, -40, 40);
   let controls = new THREE.OrbitControls(camera);
 
   let renderer = new THREE.WebGLRenderer({antialias: settings.ENABLED_ANTIALIAS});
@@ -64,9 +78,19 @@ var main = function(data) {
       }
 
       controls.reset();
-      let centerPosition = findCenterPosition(this.meshes);
+      let minPosition = findMinPosition(this.meshes);
+      let maxPosition = findMaxPosition(this.meshes);
+      let size = calculateSize(minPosition, maxPosition);
+      let centerPosition = calculateCenterPosition(minPosition, maxPosition);
+      console.info(minPosition);
+      console.info(maxPosition);
       camera.position.setX(centerPosition.x);
-      controls.target.set(centerPosition.x, centerPosition.y, 0);
+      camera.position.setY((centerPosition.y - Math.max(size.y, size.z)) * 1.3 * 2);
+      camera.position.setZ((centerPosition.z + Math.max(size.y, size.z)) * 1.3);
+
+      console.info(camera.position);
+      controls.target.copy(centerPosition);
+
       let hoverBitEventInstance = new hoverBitEvent();
       let hoverModuleEventInstance = new hoverModuleEvent();
       let clickModuleEventInstance = new clickModuleEvent();
