@@ -23,7 +23,6 @@
           {
             "vertices": [[18, 4, 0], [18, 4, 2]],
             "visual": {
-              "color": "orangered",
               "transparent": true
             }
           }
@@ -50,7 +49,6 @@
           {
             "vertices": [[18, 6, 0], [18, 6, 2]],
             "visual": {
-              "color": "gold",
               "transparent": true
             }
           }
@@ -78,7 +76,6 @@
           {
             "vertices": [[18, 8, 0], [18, 8, 2]],
             "visual": {
-              "color": "gold",
               "transparent": true
             }
           }
@@ -106,7 +103,6 @@
           {
             "vertices": [[18, 10, 0], [18, 10, 2]],
             "visual": {
-              "color": "orangered",
               "transparent": true
             }
           }
@@ -200,7 +196,8 @@
         "position": [8, 0, 4],
         "visual": {
           "transparent": true
-        }
+        },
+        "description": "A state distillation"
       },
       {
         "id": "y_state_distillation",
@@ -208,7 +205,8 @@
         "position": [0, 0, 4],
         "visual": {
           "transparent": true
-        }
+        },
+        "description": "Y state distillation"
       }
     ],
     "external_controls": [

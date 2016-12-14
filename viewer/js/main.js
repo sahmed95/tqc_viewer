@@ -1,5 +1,17 @@
 "use strict";
 
+var showDescriptionText = function(text) {
+  let height = window.innerHeight;
+  let x = 0;
+  let y = height - 100;
+  let descriptionArea = $('#description-area');
+  descriptionArea.hide().html('<h1>' + text + '</h1>').css({'left': 0, 'top': y}).fadeIn('fast');
+};
+
+var hideDescriptionText = function() {
+  $('#description-area').fadeOut('fast');
+};
+
 var findMinPosition = function(meshes) {
   let min = new THREE.Vector3(0, 0, 0);
   for(let mesh of meshes) {
@@ -62,6 +74,7 @@ var main = function(data) {
     let dataHistory = [];
 
     this.render = function(data) {
+      this.data = data;
       dataHistory.push(data);
 
       this.circuit = CircuitCreator.create(data);
@@ -120,6 +133,7 @@ var main = function(data) {
     };
 
     this.rerender = function(data) {
+      hideDescriptionText();
       $('canvas').fadeOut('fast', () => {
         this.clear();
         this.render(data);
@@ -210,6 +224,7 @@ var main = function(data) {
       }
       changedMeshes = meshes;
       previousModuleId = moduleId;
+      hideDescriptionText();
     };
 
     this.intersected = function(intersectMeshes) {
@@ -224,6 +239,9 @@ var main = function(data) {
           material.defaultColor = material.color.clone();
           material.color.set(settings.COLOR_SET.SELECTED);
         }
+        let moduleRawData = intersectMesh.raw_data;
+        let text = ('description' in moduleRawData) ? moduleRawData.description : moduleId;
+        showDescriptionText(text);
         console.log('Module ID: ' + moduleId);
       }
     };

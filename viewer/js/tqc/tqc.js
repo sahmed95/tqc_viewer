@@ -341,10 +341,10 @@ class Cap extends Injector {
 }
 
 class LogicalQubit {
-  constructor(edges, id, ...visual) {
+  constructor(edges, raw_data, ...visual) {
     Object.assign(this, {edges})
     this.vertices = this.create_vertices_();
-    this.id = id;
+    this.raw_data = raw_data;
     this.set_visual(...visual);
   }
 
@@ -377,7 +377,7 @@ class LogicalQubit {
 
   set_id_(meshes) {
     for(let mesh of meshes) {
-      mesh.bit_id = this.id;
+      mesh.bit_id = this.raw_data.id;
     }
     return meshes;
   }
@@ -396,11 +396,11 @@ class Smooth extends LogicalQubit {
 }
 
 class Module extends Rectangular {
-  constructor(pos, size, id, ...visual) {
+  constructor(pos, size, raw_data, ...visual) {
     size = size.mul(settings.PITCH).add(1);
     pos = pos.mul(settings.PITCH).add(size.div(2)).sub(0.5);
     super(pos, size, ...visual);
-    this.id = id;
+    this.raw_data = raw_data;
   }
 
   create_meshes(color = settings.COLOR_SET.MODULE, transparent = undefined, opacity = undefined) {
@@ -409,7 +409,8 @@ class Module extends Rectangular {
 
   set_id_(meshes) {
     for(let mesh of meshes) {
-      mesh.module_id = this.id;
+      mesh.module_id = this.raw_data.id;
+      mesh.raw_data = this.raw_data;
     }
     return meshes;
   }
@@ -427,8 +428,9 @@ class Circuit {
     for(let logical_qubit of this.logical_qubits) {
       let logical_qubit_meshes = logical_qubit.create_meshes(...visual);
       meshes.push(...logical_qubit_meshes);
-      if(!(logical_qubit.id in this.logical_qubit_meshes_map)) this.logical_qubit_meshes_map[logical_qubit.id] = [];
-      this.logical_qubit_meshes_map[logical_qubit.id].push(...logical_qubit_meshes);
+      let id = logical_qubit.raw_data.id;
+      if(!(id in this.logical_qubit_meshes_map)) this.logical_qubit_meshes_map[id] = [];
+      this.logical_qubit_meshes_map[id].push(...logical_qubit_meshes);
     }
     for(let module of this.modules) {
       let module_meshes = module.create_meshes(...visual);
@@ -459,8 +461,7 @@ class CircuitCreator {
       let caps      = this.create_caps(logical_qubit_data.caps);
       let type = logical_qubit_data.type;
       let cls = type === 'rough' ? Rough : Smooth;
-      let id = logical_qubit_data.id;
-      logical_qubits.push(new cls([...blocks, ...injectors, ...caps], id));
+      logical_qubits.push(new cls([...blocks, ...injectors, ...caps], logical_qubit_data));
     }
     return logical_qubits;
   }
@@ -474,7 +475,7 @@ class CircuitCreator {
       if(settings.ENABLED_OVERWRITE_COLORS && 'visual' in module_data) {
         visual = this.parse_visual_(module_data.visual);
       }
-      modules.push(new Module(pos, size, module_data.id, ...visual));
+      modules.push(new Module(pos, size, module_data, ...visual));
     }
     return modules;
   }

@@ -73,3 +73,13 @@ a:link.disabled, a:visited.disabled, a:hover.disabled, a:active.disabled {
 .material-switch > label.label-primary {
   background: #428bca;
 }
+
+.description-area {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-size: xx-large;
+  color: dimgray;
+  z-index: 100;
+  display: none;
+}
