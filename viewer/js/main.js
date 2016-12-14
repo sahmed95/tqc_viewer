@@ -9,6 +9,8 @@ var showDescriptionText = function(text) {
 };
 
 var hideDescriptionText = function() {
+  let descriptionArea = $('#description-area');
+  descriptionArea.stop(true);
   $('#description-area').fadeOut('fast');
 };
 
