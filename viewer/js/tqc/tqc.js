@@ -133,7 +133,7 @@ class Polyhedron {
     if(this.color != undefined) color = this.color;
     if(this.transparent != undefined) transparent = this.transparent;
     if(this.opacity != undefined) opacity = this.opacity;
-    let material = new THREE.MeshPhongMaterial({color: color, transparent: transparent, opacity: opacity});
+    let material = new THREE.MeshLambertMaterial({color: color, transparent: transparent, opacity: opacity});
     let mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...this.pos.mul(settings.SCALE).to_array());
     return [mesh];
