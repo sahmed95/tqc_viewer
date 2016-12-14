@@ -1,5 +1,15 @@
 "use strict";
 
+var findCenterPosition = function(meshes) {
+  let max = new THREE.Vector3(0, 0, 0);
+  let min = new THREE.Vector3(0, 0, 0);
+  for(let mesh of meshes) {
+    max.max(mesh.position);
+    min.min(mesh.position);
+  }
+  return max.add(min).divideScalar(2);
+};
+
 var main = function(data) {
   let scene = new THREE.Scene();
 
@@ -11,6 +21,9 @@ var main = function(data) {
   let far    = 1000;
   let camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
   camera.position.set(0, -40, 35);
+  let controls = new THREE.OrbitControls(camera);
+
+  console.info(controls);
 
   let renderer = new THREE.WebGLRenderer({antialias: settings.ENABLED_ANTIALIAS});
   renderer.setSize(width, height);
@@ -33,27 +46,74 @@ var main = function(data) {
   scene.add(directionalLight);
   scene.add(ambientLight);
 
-  let circuit = CircuitCreator.create(data);
+  let CircuitRenderer = function() {
+    this.render = function(data) {
+      this.circuit = CircuitCreator.create(data);
+      this.meshes = this.circuit.create_meshes();
 
-  CircuitDrawer.draw(circuit, scene);
+      for(let mesh of this.meshes) {
+        scene.add(mesh);
+        if(settings.DISPLAY_EDGES_FLAG) {
+          let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
+          let material = new THREE.LineBasicMaterial({color: settings.COLOR_SET.EDGE});
+          let edge = new THREE.LineSegments(geometry, material);
+          mesh.add(edge);
+        }
+      }
 
-  let clickEvent = function(intersectedFunc, constantFunc = () => {}) {
+      controls.reset();
+      let centerPosition = findCenterPosition(this.meshes);
+      camera.position.setX(centerPosition.x);
+      controls.target.set(centerPosition.x, centerPosition.y, 0);
+      let bitEvent = new selectBitEvent();
+      let moduleEvent = new selectModuleEvent();
+      window.onmousedown = clickEvent([bitEvent.intersected, moduleEvent.intersected], bitEvent.constant);
+    };
+
+    this.clear = function() {
+      for(let mesh of this.meshes) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+      }
+    };
+
+    this.rerender = function(data) {
+      $('canvas').fadeOut('fast', () => {
+        this.clear();
+        this.render(data);
+      }).fadeIn(1000);
+    };
+  };
+
+  let clickEvent = function(intersectedFunc, constantFunc = [() => {}]) {
     let mouse = {x: 0, y: 0};
-    let targetMeshes = CircuitDrawer.meshes;
+    let targetMeshes = circuitRenderer.meshes;
+    if(!Array.isArray(intersectedFunc)) intersectedFunc = [intersectedFunc];
+    if(!Array.isArray(constantFunc)) constantFunc = [constantFunc];
+
+    let getIntersectMeshes = function(event) {
+      let rect = event.target.getBoundingClientRect();
+      mouse.x =  event.clientX - rect.left;
+      mouse.y =  event.clientY - rect.top;
+      mouse.x =  (mouse.x / width) * 2 - 1;
+      mouse.y = -(mouse.y / height) * 2 + 1;
+      let vector = new THREE.Vector3(mouse.x, mouse.y ,1);
+      vector.unproject(camera);
+      let ray = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
+      return ray.intersectObjects(targetMeshes);
+    };
 
     return function(event) {
-      if(event.target == renderer.domElement) {
-        let rect = event.target.getBoundingClientRect();
-        mouse.x =  event.clientX - rect.left;
-        mouse.y =  event.clientY - rect.top;
-        mouse.x =  (mouse.x / width) * 2 - 1;
-        mouse.y = -(mouse.y / height) * 2 + 1;
-        let vector = new THREE.Vector3(mouse.x, mouse.y ,1);
-        vector.unproject(camera);
-        let ray = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
-        let intersectMeshes = ray.intersectObjects(targetMeshes);
-        constantFunc(intersectMeshes);
-        if(intersectMeshes.length > 0) intersectedFunc(intersectMeshes);
+      if(event.target != renderer.domElement) return;
+      let intersectMeshes = getIntersectMeshes(event);
+      for(let func of constantFunc) {
+        func(intersectMeshes);
+      }
+      if(intersectMeshes.length > 0) {
+        for(let func of intersectedFunc) {
+          func(intersectMeshes);
+        }
       }
     };
   };
@@ -73,7 +133,7 @@ var main = function(data) {
       if(!('bit_id' in intersectMeshes[0].object)) return;
       let bitId = intersectMeshes[0].object.bit_id;
       console.log('Logical qubit ID: ' + bitId);
-      changedMeshes = circuit.logical_qubits_map[bitId].meshes;
+      changedMeshes = circuitRenderer.circuit.logical_qubits_map[bitId].meshes;
       for(let mesh of changedMeshes) {
         let material = mesh.material;
         material.defaultColor = material.color.clone();
@@ -82,10 +142,23 @@ var main = function(data) {
     };
   };
 
-  let event = new selectBitEvent();
-  window.onmousedown = clickEvent(event.intersected, event.constant);
+  let selectModuleEvent = function() {
+    let currentModuleId = 'main';
+    let previousModuleId;
 
-  let controls = new THREE.OrbitControls(camera);
+    this.intersected = function(intersectMeshes) {
+      if(!('module_id' in intersectMeshes[0].object)) return;
+      let moduleId = intersectMeshes[0].object.module_id;
+      if(!(moduleId in data)) return;
+      previousModuleId = currentModuleId;
+      currentModuleId = moduleId;
+      circuitRenderer.rerender(data[moduleId]);
+    };
+  };
+
+  let currentData = ('main' in data) ? data.main : data;
+  let circuitRenderer = new CircuitRenderer();
+  circuitRenderer.render(currentData);
 
   (function renderLoop() {
     if(settings.ENABLED_AUTO_FOLLOWING_LIGHT) {

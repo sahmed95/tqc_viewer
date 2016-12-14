@@ -355,9 +355,8 @@ class LogicalQubit {
         meshes.push(...defect.create_meshes(...visual));
       }
     }
-    this.set_id_(meshes);
-    this.meshes = meshes;
-    return meshes;
+    this.meshes = this.set_id_(meshes);
+    return this.meshes;
   }
 
   create_vertices_() {
@@ -380,6 +379,7 @@ class LogicalQubit {
     for(let mesh of meshes) {
       mesh.bit_id = this.id;
     }
+    return meshes;
   }
 }
 
@@ -396,8 +396,22 @@ class Smooth extends LogicalQubit {
 }
 
 class Module extends Rectangular {
+  constructor(pos, size, id, ...visual) {
+    size = size.mul(settings.PITCH).add(1);
+    pos = pos.mul(settings.PITCH).add(size.div(2)).sub(0.5);
+    super(pos, size, ...visual);
+    this.id = id;
+  }
+
   create_meshes(color = settings.COLOR_SET.MODULE, transparent = undefined, opacity = undefined) {
-    super.create_meshes(color, transparent, opacity);
+    return this.set_id_(super.create_meshes(color, transparent, opacity));
+  }
+
+  set_id_(meshes) {
+    for(let mesh of meshes) {
+      mesh.module_id = this.id;
+    }
+    return meshes;
   }
 };
 
@@ -413,10 +427,8 @@ class Circuit {
 
   create_meshes(...visual) {
     let meshes = [];
-    for(let polyhedrons of [this.logical_qubits, this.modules]) {
-      for(let polyhedron of polyhedrons) {
-        meshes.push(...polyhedron.create_meshes(...visual));
-      }
+    for(let polyhedron of [...this.logical_qubits, ...this.modules]) {
+      meshes.push(...polyhedron.create_meshes(...visual));
     }
     return meshes;
   }
@@ -454,7 +466,11 @@ class CircuitCreator {
     for(let module_data of data) {
       let pos = new Pos(...module_data.position);
       let size = new Size(...module_data.size);
-      edges.push(new Module(pos, size));
+      let visual = [];
+      if(settings.ENABLED_OVERWRITE_COLORS && 'visual' in module_data) {
+        visual = this.parse_visual_(module_data.visual);
+      }
+      modules.push(new Module(pos, size, module_data.id, ...visual));
     }
     return modules;
   }
@@ -496,14 +512,14 @@ class CircuitCreator {
   static parse_visual_(data) {
     let visual = [];
     for(let property of ['color', 'transparent', 'opacity']) {
-      if(property in data) visual.push(data[property]);
+      visual.push(data[property]);
     }
     return visual;
   }
 }
 
-class CircuitDrawer {
-  static draw(circuit, scene) {
+class CircuitRenderer {
+  static render(circuit, scene) {
     this.meshes = circuit.create_meshes();
     for(let mesh of this.meshes) {
       scene.add(mesh);
