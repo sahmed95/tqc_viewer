@@ -23,8 +23,6 @@ var main = function(data) {
   camera.position.set(0, -40, 35);
   let controls = new THREE.OrbitControls(camera);
 
-  console.info(controls);
-
   let renderer = new THREE.WebGLRenderer({antialias: settings.ENABLED_ANTIALIAS});
   renderer.setSize(width, height);
   renderer.setClearColor(new THREE.Color(0xffffff));
@@ -47,7 +45,11 @@ var main = function(data) {
   scene.add(ambientLight);
 
   let CircuitRenderer = function() {
+    let dataHistory = [];
+
     this.render = function(data) {
+      dataHistory.push(data);
+
       this.circuit = CircuitCreator.create(data);
       this.meshes = this.circuit.create_meshes();
 
@@ -65,9 +67,24 @@ var main = function(data) {
       let centerPosition = findCenterPosition(this.meshes);
       camera.position.setX(centerPosition.x);
       controls.target.set(centerPosition.x, centerPosition.y, 0);
-      let bitEvent = new selectBitEvent();
-      let moduleEvent = new selectModuleEvent();
-      window.onmousedown = clickEvent([bitEvent.intersected, moduleEvent.intersected], bitEvent.constant);
+      let hoverBitEventInstance = new hoverBitEvent();
+      let hoverModuleEventInstance = new hoverModuleEvent();
+      let clickModuleEventInstance = new clickModuleEvent();
+      let hoverEventsIntersected = [hoverBitEventInstance.intersected, hoverModuleEventInstance.intersected];
+      let hoverEventsNonintersected = [hoverBitEventInstance.nonintersected, hoverModuleEventInstance.nonintersected];
+      window.onmousemove = selectEvent(hoverEventsIntersected, hoverEventsNonintersected);
+      window.onmousedown = selectEvent(clickModuleEventInstance.intersected);
+
+      $('#reset-button').off('click').on('click', () => {this.rerender(dataHistory.pop());});
+      $('#reset-button').css({'visibility': 'visible'});
+
+      if(dataHistory.length > 1) {
+        $('#back-button').off('click').on('click', () => {dataHistory.pop(); this.rerender(dataHistory.pop());});
+        $('#back-button').css({'visibility': 'visible'});
+      }
+      else {
+        $('#back-button').css({'visibility': 'hidden'});
+      }
     };
 
     this.clear = function() {
@@ -86,10 +103,11 @@ var main = function(data) {
     };
   };
 
-  let clickEvent = function(intersectedFunc, constantFunc = [() => {}]) {
+  let selectEvent = function(intersectedFunc, nonintersectedFunc = [() => {}], constantFunc = [() => {}]) {
     let mouse = {x: 0, y: 0};
     let targetMeshes = circuitRenderer.meshes;
     if(!Array.isArray(intersectedFunc)) intersectedFunc = [intersectedFunc];
+    if(!Array.isArray(nonintersectedFunc)) nonintersectedFunc = [nonintersectedFunc];
     if(!Array.isArray(constantFunc)) constantFunc = [constantFunc];
 
     let getIntersectMeshes = function(event) {
@@ -115,43 +133,89 @@ var main = function(data) {
           func(intersectMeshes);
         }
       }
+      else {
+        for(let func of nonintersectedFunc) {
+          func();
+        }
+      }
     };
   };
 
-  let selectBitEvent = function() {
+  let hoverBitEvent = function() {
     let changedMeshes = [];
+    let previousBitId = undefined;
 
-    this.constant = function() {
+    let clear = function(meshes = [], bitId = undefined) {
       for(let mesh of changedMeshes) {
         let material = mesh.material;
         material.color = material.defaultColor;
       }
-      changedMeshes = [];
+      changedMeshes = meshes;
+      previousBitId = bitId;
     };
 
     this.intersected = function(intersectMeshes) {
-      if(!('bit_id' in intersectMeshes[0].object)) return;
-      let bitId = intersectMeshes[0].object.bit_id;
-      console.log('Logical qubit ID: ' + bitId);
-      changedMeshes = circuitRenderer.circuit.logical_qubits_map[bitId].meshes;
-      for(let mesh of changedMeshes) {
-        let material = mesh.material;
-        material.defaultColor = material.color.clone();
-        material.color.set(settings.COLOR_SET.SELECTED);
+      let intersectMesh = intersectMeshes[0].object;
+      if(!('bit_id' in intersectMesh)) return clear();
+      let bitId = intersectMesh.bit_id;
+      if(bitId === previousBitId) return;
+      else {
+        clear(circuitRenderer.circuit.logical_qubits_map[bitId].meshes, bitId);
+        for(let mesh of changedMeshes) {
+          let material = mesh.material;
+          material.defaultColor = material.color.clone();
+          material.color.set(settings.COLOR_SET.SELECTED);
+        }
+        console.log('Logical qubit ID: ' + bitId);
       }
     };
+
+    this.nonintersected = function() {
+      clear();
+    }
   };
 
-  let selectModuleEvent = function() {
-    let currentModuleId = 'main';
-    let previousModuleId;
+  let hoverModuleEvent = function() {
+    let changedMeshes = [];
+    let previousModuleId = undefined;
 
+    let clear = function(meshes = [], moduleId = undefined) {
+      for(let mesh of changedMeshes) {
+        let material = mesh.material;
+        material.color = material.defaultColor;
+      }
+      changedMeshes = meshes;
+      previousModuleId = moduleId;
+    };
+
+    this.intersected = function(intersectMeshes) {
+      let intersectMesh = intersectMeshes[0].object;
+      if(!('module_id' in intersectMesh)) return clear();
+      let moduleId = intersectMesh.module_id;
+      if(moduleId === previousModuleId) return;
+      else {
+        clear([intersectMesh], moduleId);
+        for(let mesh of changedMeshes) {
+          let material = mesh.material;
+          material.defaultColor = material.color.clone();
+          material.color.set(settings.COLOR_SET.SELECTED);
+        }
+        console.log('Module ID: ' + moduleId);
+      }
+    };
+
+    this.nonintersected = function() {
+      clear();
+    }
+  };
+
+  let clickModuleEvent = function() {
     this.intersected = function(intersectMeshes) {
       if(!('module_id' in intersectMeshes[0].object)) return;
       let moduleId = intersectMeshes[0].object.module_id;
-      if(!(moduleId in data)) return;
-      previousModuleId = currentModuleId;
-      currentModuleId = moduleId;
+      if(!(moduleId in data)) {
+        console.error('Not found a module: ' + moduleId);
+      }
       circuitRenderer.rerender(data[moduleId]);
     };
   };
@@ -173,7 +237,7 @@ var main = function(data) {
 var prepareCanvas = function() {
   $('#drop-zone').hide();
   $('#file-selector').hide();
-  $('#reset-button').show();
+  $('#reset-button').css({'visibility': 'visible'});
   $('#canvas').show();
 };
 
