@@ -25,7 +25,10 @@ var main = function(data) {
     directionalLight.position.y += 0.4;
     directionalLight.position.normalize();
   };
-  //directionalLight.position.set(0, -0.5, 0.7);
+
+  if(!settings.ENABLED_AUTO_FOLLOWING_LIGHT) {
+    directionalLight.position.set(0, -0.5, 0.7);
+  }
 
   scene.add(directionalLight);
   scene.add(ambientLight);
@@ -85,7 +88,9 @@ var main = function(data) {
   let controls = new THREE.OrbitControls(camera);
 
   (function renderLoop() {
-    setDirectionalLight(camera.position, controls.target);
+    if(settings.ENABLED_AUTO_FOLLOWING_LIGHT) {
+      setDirectionalLight(camera.position, controls.target);
+    }
     requestAnimationFrame(renderLoop);
     controls.update();
     renderer.render(scene, camera);
@@ -206,6 +211,7 @@ var setSettingsForm = function(settings) {
   $('#color-rough-setting').val(settings.COLOR_SET.ROUGH);
   $('#color-smooth-setting').val(settings.COLOR_SET.SMOOTH);
   if(settings.ENABLED_OVERWRITE_COLORS) $('#color-overwrite-setting').prop('checked', true);
+  if(settings.ENABLED_AUTO_FOLLOWING_LIGHT) $('#light-auto-following-setting').prop('checked', true);
   if(settings.DISPLAY_EDGES_FLAG) $('#display-edges-setting').prop('checked', true);
   if(settings.ENABLED_ANTIALIAS) $('#antialias-setting').prop('checked', true);
 };
@@ -229,6 +235,7 @@ var loadSettings = function() {
   let color_set_rough = storage.getItem('settings.COLOR_SET.ROUGH');
   let color_set_smooth = storage.getItem('settings.COLOR_SET.SMOOTH');
   let enabed_overwrite_colors = storage.getItem('settings.ENABLED_OVERWRITE_COLORS');
+  let enabed_auto_following_light = storage.getItem('settings.ENABLED_AUTO_FOLLOWING_LIGHT');
   let display_edges_flag = storage.getItem('settings.DISPLAY_EDGES_FLAG');
   let antialias = storage.getItem('settings.ENABLED_ANTIALIAS');
 
@@ -239,6 +246,7 @@ var loadSettings = function() {
   if(color_set_rough) settings.COLOR_SET.ROUGH = color_set_rough;
   if(color_set_smooth) settings.COLOR_SET.SMOOTH = color_set_smooth;
   if(enabed_overwrite_colors) settings.ENABLED_OVERWRITE_COLORS = Number(enabed_overwrite_colors);
+  if(enabed_auto_following_light) settings.ENABLED_AUTO_FOLLOWING_LIGHT = Number(enabed_auto_following_light);
   if(display_edges_flag) settings.DISPLAY_EDGES_FLAG = Number(display_edges_flag);
   if(antialias) settings.ENABLED_ANTIALIAS = Number(antialias);
 };
@@ -250,6 +258,7 @@ var saveSettings = function() {
   storage.setItem('settings.COLOR_SET.ROUGH', document.getElementById("color-rough-setting").value);
   storage.setItem('settings.COLOR_SET.SMOOTH', document.getElementById("color-smooth-setting").value);
   storage.setItem('settings.ENABLED_OVERWRITE_COLORS', $('[id=color-overwrite-setting]:checked').val());
+  storage.setItem('settings.ENABLED_AUTO_FOLLOWING_LIGHT', $('[id=light-auto-following-setting]:checked').val());
   storage.setItem('settings.DISPLAY_EDGES_FLAG', $('[id=display-edges-setting]:checked').val());
   storage.setItem('settings.ENABLED_ANTIALIAS', $('[id=antialias-setting]:checked').val());
 

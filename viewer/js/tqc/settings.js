@@ -13,6 +13,7 @@ settings.DIRECTIONAL_LIGHT_LEVEL = 0.8;
 settings.AMBIENT_LIGHT_LEVEL = 0.4;
 settings.ENABLED_OVERWRITE_COLORS = true;
 settings.ENABLED_ANTIALIAS = true;
+settings.ENABLED_AUTO_FOLLOWING_LIGHT = true;
 
 /*
 export const SCALE = 1;

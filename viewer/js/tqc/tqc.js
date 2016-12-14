@@ -2,11 +2,6 @@
 
 //import * as settings from 'settings';
 
-function is_same(type, obj) {
-  var clas = Object.prototype.toString.call(obj).slice(8, -1);
-  return obj !== undefined && obj !== null && clas === type;
-}
-
 class Vector {
   clone() {
     return new Vector(...this.get_basis_());
