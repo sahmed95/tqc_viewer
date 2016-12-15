@@ -75,13 +75,11 @@ var main = function(data) {
   let CircuitRenderer = function() {
     let dataHistory = [];
 
-    this.render = function(data) {
-      this.data = data;
-      dataHistory.push(data);
+    this.render = function(data, basePosition, rotation) {
+      dataHistory.push([data, basePosition, rotation]);
 
-      this.circuit = CircuitCreator.create(data);
+      this.circuit = CircuitCreator.create(data, basePosition, rotation);
       this.meshes = this.circuit.create_meshes();
-
       for(let mesh of this.meshes) {
         scene.add(mesh);
         if(settings.DISPLAY_EDGES_FLAG) {
@@ -97,28 +95,27 @@ var main = function(data) {
       let maxPosition = findMaxPosition(this.meshes);
       let size = calculateSize(minPosition, maxPosition);
       let centerPosition = calculateCenterPosition(minPosition, maxPosition);
-      console.info(minPosition);
-      console.info(maxPosition);
       camera.position.setX(centerPosition.x);
       camera.position.setY((centerPosition.y - Math.max(size.y, size.z)) * 1.3 * 2);
       camera.position.setZ((centerPosition.z + Math.max(size.y, size.z)) * 1.3);
-
-      console.info(camera.position);
       controls.target.copy(centerPosition);
 
       let hoverBitEventInstance = new hoverBitEvent();
       let hoverModuleEventInstance = new hoverModuleEvent();
       let clickModuleEventInstance = new clickModuleEvent();
+      let rightClickModuleEventInstance = new rightClickModuleEvent();
       let hoverEventsIntersected = [hoverBitEventInstance.intersected, hoverModuleEventInstance.intersected];
       let hoverEventsNonintersected = [hoverBitEventInstance.nonintersected, hoverModuleEventInstance.nonintersected];
-      window.onmousemove = selectEvent(hoverEventsIntersected, hoverEventsNonintersected);
-      window.onmousedown = selectEvent(clickModuleEventInstance.intersected);
 
-      $('#reset-button').off('click').on('click', () => {this.rerender(dataHistory.pop());});
+      window.onmousemove = selectEvent(hoverEventsIntersected, hoverEventsNonintersected);
+      window.ondblclick = selectEvent(clickModuleEventInstance.intersected);
+      window.oncontextmenu = selectEvent(rightClickModuleEventInstance.intersected);
+
+      $('#reset-button').off('click').on('click', () => {this.rerender(...dataHistory.pop());});
       $('#reset-button').css({'visibility': 'visible'});
 
       if(dataHistory.length > 1) {
-        $('#back-button').off('click').on('click', () => {dataHistory.pop(); this.rerender(dataHistory.pop());});
+        $('#back-button').off('click').on('click', () => {dataHistory.pop(); this.rerender(...dataHistory.pop());});
         $('#back-button').css({'visibility': 'visible'});
       }
       else {
@@ -132,14 +129,59 @@ var main = function(data) {
         mesh.geometry.dispose();
         mesh.material.dispose();
       }
+      this.meshes = [];
     };
 
-    this.rerender = function(data) {
+    this.rerender = function(...args) {
       hideDescriptionText();
       $('canvas').fadeOut('fast', () => {
         this.clear();
-        this.render(data);
+        this.render(...args);
       }).fadeIn(1000);
+    };
+
+    this.removeModuleMesh = function(moduleId) {
+      for(let i = 0; i < this.meshes.length; ++i) {
+      //for(let mesh of this.meshes) {
+        let mesh = this.meshes[i];
+        if(('module_id' in mesh) && mesh.module_id === moduleId) {
+          scene.remove(mesh);
+          mesh.geometry.dispose();
+          mesh.material.dispose();
+          this.meshes.splice(i, 1);
+          return;
+        }
+      }
+    };
+
+    this.addrender = function(data, basePosition, rotation, moduleId) {
+      if(this.meshes) {
+        this.removeModuleMesh(moduleId);
+        let circuit = CircuitCreator.create(data, basePosition, rotation);
+        let newMeshes = circuit.create_meshes();
+        for(let mesh of newMeshes) {
+          scene.add(mesh);
+          if(settings.DISPLAY_EDGES_FLAG) {
+            let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
+            let material = new THREE.LineBasicMaterial({color: settings.COLOR_SET.EDGE});
+            let edge = new THREE.LineSegments(geometry, material);
+            mesh.add(edge);
+          }
+        }
+        this.meshes.push(...newMeshes);
+
+        let hoverBitEventInstance = new hoverBitEvent();
+        let hoverModuleEventInstance = new hoverModuleEvent();
+        let clickModuleEventInstance = new clickModuleEvent();
+        let rightClickModuleEventInstance = new rightClickModuleEvent();
+        let hoverEventsIntersected = [hoverBitEventInstance.intersected, hoverModuleEventInstance.intersected];
+        let hoverEventsNonintersected = [hoverBitEventInstance.nonintersected, hoverModuleEventInstance.nonintersected];
+
+        window.onmousemove = selectEvent(hoverEventsIntersected, hoverEventsNonintersected);
+        window.ondblclick = selectEvent(clickModuleEventInstance.intersected);
+        window.oncontextmenu = selectEvent(rightClickModuleEventInstance.intersected);
+      }
+      else this.render();
     };
   };
 
@@ -254,10 +296,10 @@ var main = function(data) {
   };
 
   let clickModuleEvent = function() {
-    let loadFile = function(moduleId) {
+    let loadFile = function(moduleId, basePosition, rotation) {
       let fileName = 'samples/' + moduleId + '.json';
       $.getJSON(fileName, function(data) {
-        circuitRenderer.rerender(data);
+        circuitRenderer.rerender(data, basePosition, rotation);
       })
       .fail(function(jqXHR, textStatus, errorThrown) {
         console.error('Not found a module: ' + moduleId);
@@ -265,10 +307,36 @@ var main = function(data) {
     };
 
     this.intersected = function(intersectMeshes) {
-      if(!('module_id' in intersectMeshes[0].object)) return;
-      let moduleId = intersectMeshes[0].object.module_id;
-      if(moduleId in data) circuitRenderer.rerender(data[moduleId]);
-      else                 loadFile(moduleId);
+      let intersectMesh = intersectMeshes[0].object;
+      if(!('module_id' in intersectMesh)) return;
+      let moduleId = intersectMesh.module_id;
+      let rotation = intersectMesh.raw_data.rotation;
+      console.info(intersectMesh.raw_data.rotation);
+      if(moduleId in data) circuitRenderer.rerender(data[moduleId], [0, 0, 0], rotation);
+      else                 loadFile(moduleId, [0, 0, 0], rotation);
+    };
+  };
+
+  let rightClickModuleEvent = function() {
+    let loadFile = function(moduleId, ...args) {
+      let fileName = 'samples/' + moduleId + '.json';
+      $.getJSON(fileName, function(data) {
+        circuitRenderer.addrender(data, ...args, moduleId);
+      })
+      .fail(function(jqXHR, textStatus, errorThrown) {
+        console.error('Not found a module: ' + moduleId);
+      });
+    };
+
+    this.intersected = function(intersectMeshes) {
+      let intersectMesh = intersectMeshes[0].object;
+      if(!('module_id' in intersectMesh)) return;
+      let moduleId = intersectMesh.module_id;
+      let basePosition = intersectMesh.raw_data.position;
+      let rotation = intersectMesh.raw_data.rotation;
+      console.info(intersectMesh.raw_data.rotation);
+      if(moduleId in data) circuitRenderer.addrender(data[moduleId], basePosition, rotation, moduleId);
+      else                 loadFile(moduleId, basePosition, rotation);
     };
   };
 

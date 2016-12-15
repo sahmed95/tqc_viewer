@@ -417,8 +417,14 @@ class Module extends Rectangular {
 };
 
 class Circuit {
-  constructor(logical_qubits, modules, ...visual) {
+  constructor(logical_qubits = [], modules = [], ...visual) {
     Object.assign(this, {logical_qubits, modules});
+    this.set_visual(...visual);
+  }
+
+  add(logical_qubits = [], modules = [], ...visual) {
+    this.logical_qubits.push(...logical_qubits);
+    this.modules.push(...modules);
     this.set_visual(...visual);
   }
 
@@ -447,18 +453,25 @@ class Circuit {
 }
 
 class CircuitCreator {
-  static create(data) {
-    let logical_qubits = this.create_logical_qubits(data.logical_qubits);
-    let modules = this.create_modules(data.modules);
+  static create(data, ...args) {
+    let logical_qubits = this.create_logical_qubits(data.logical_qubits, ...args);
+    let modules = this.create_modules(data.modules, ...args);
     return new Circuit(logical_qubits, modules);
   }
 
-  static create_logical_qubits(data = []) {
+  static add(circuit, data, ...args) {
+    let logical_qubits = this.create_logical_qubits(data.logical_qubits, ...args);
+    let modules = this.create_modules(data.modules, ...args);
+    circuit.add(logical_qubits, modules);
+    return circuit;
+  }
+
+  static create_logical_qubits(data = [], base_position = [0, 0, 0], rotation = ['x', 'y', 'z']) {
     let logical_qubits = [];
     for(let logical_qubit_data of data) {
-      let blocks    = this.create_blocks(logical_qubit_data.blocks);
-      let injectors = this.create_injectors(logical_qubit_data.injectors);
-      let caps      = this.create_caps(logical_qubit_data.caps);
+      let blocks    = this.create_blocks(logical_qubit_data.blocks, base_position, rotation);
+      let injectors = this.create_injectors(logical_qubit_data.injectors, base_position, rotation);
+      let caps      = this.create_caps(logical_qubit_data.caps, base_position, rotation);
       let type = logical_qubit_data.type;
       let cls = type === 'rough' ? Rough : Smooth;
       logical_qubits.push(new cls([...blocks, ...injectors, ...caps], logical_qubit_data));
@@ -466,10 +479,10 @@ class CircuitCreator {
     return logical_qubits;
   }
 
-  static create_modules(data = []) {
+  static create_modules(data = [], base_position = [0, 0, 0], rotation = ['x', 'y', 'z']) {
     let modules = [];
     for(let module_data of data) {
-      let pos = new Pos(...module_data.position);
+      let pos = this.collect_pos_(new Pos(...module_data.position), base_position, rotation);
       let size = new Size(...module_data.size);
       let visual = [];
       if(settings.ENABLED_OVERWRITE_COLORS && 'visual' in module_data) {
@@ -480,19 +493,19 @@ class CircuitCreator {
     return modules;
   }
 
-  static create_blocks(data) {
-    return this.create_edges_(data, Block);
+  static create_blocks(...args) {
+    return this.create_edges_(Block, ...args);
   }
 
-  static create_injectors(data) {
-    return this.create_edges_(data, Injector);
+  static create_injectors(...args) {
+    return this.create_edges_(Injector, ...args);
   }
 
-  static create_caps(data) {
-    return this.create_edges_(data, Cap);
+  static create_caps(...args) {
+    return this.create_edges_(Cap, ...args);
   }
 
-  static create_edges_(data = [], cls) {
+  static create_edges_(cls, data = [], base_position, rotation) {
     let edges = [];
     for(let raw_vertices_data of data) {
       let vertices_data = [];
@@ -500,7 +513,8 @@ class CircuitCreator {
       else if('vertices' in raw_vertices_data) vertices_data = raw_vertices_data.vertices;
       let vertices = [];
       for(let vertex_data of vertices_data) {
-        vertices.push(new Vertex(new Pos(...vertex_data)));
+        let pos = this.collect_pos_(new Pos(...vertex_data), base_position, rotation);
+        vertices.push(new Vertex(pos));
       }
       //let vertex_a = new Vertex(new Pos(...vertices[0]));
       //let vertex_b = new Vertex(new Pos(...vertices[1]));
@@ -512,6 +526,14 @@ class CircuitCreator {
       edges.push(...cls.create_edges(cls, vertices, false, ...visual));
     }
     return edges;
+  }
+
+  static collect_pos_(pos, base_position, rotation) {
+    let collected_pos = new Pos();
+    collected_pos.x = pos[rotation[0]] + base_position[0];
+    collected_pos.y = pos[rotation[1]] + base_position[1];
+    collected_pos.z = pos[rotation[2]] + base_position[2];
+    return collected_pos;
   }
 
   static parse_visual_(data) {
