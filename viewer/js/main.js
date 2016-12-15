@@ -75,12 +75,26 @@ var main = function(data) {
   let CircuitRenderer = function() {
     let dataHistory = [];
 
-    this.render = function(data, basePosition, rotation) {
-      dataHistory.push([data, basePosition, rotation]);
+    this.getCurrentData = function() {
+      return dataHistory[dataHistory.length - 1];
+    }
 
-      this.circuit = CircuitCreator.create(data, basePosition, rotation);
-      this.meshes = this.circuit.create_meshes();
+    this.getCircuitsData = function(circuitId) {
+      return this.circuitsData[circuitId];
+    }
+
+    this.render = function(data, basePosition = [0, 0, 0], rotation = ['x', 'y', 'z'], circuitId = 'main') {
+      let currentData = ('main' in data) ? data.main : data;
+
+      dataHistory.push([data, basePosition, rotation, circuitId]);
+      if(!this.circuitsData) this.circuitsData = {};
+      this.circuitsData[circuitId] = this.getCurrentData();
+
+      if(!this.circuits) this.circuits = {};
+      this.circuits[circuitId] = CircuitCreator.create(currentData, basePosition, rotation);
+      this.meshes = this.circuits[circuitId].create_meshes();
       for(let mesh of this.meshes) {
+        mesh['circuitId'] = circuitId;
         scene.add(mesh);
         if(settings.DISPLAY_EDGES_FLAG) {
           let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
@@ -130,6 +144,7 @@ var main = function(data) {
         mesh.material.dispose();
       }
       this.meshes = [];
+      this.circuitsData = {};
     };
 
     this.rerender = function(...args) {
@@ -140,11 +155,11 @@ var main = function(data) {
       }).fadeIn(1000);
     };
 
-    this.removeModuleMesh = function(moduleId) {
+    this.removeModuleMesh = function(circuitId, moduleId) {
       for(let i = 0; i < this.meshes.length; ++i) {
       //for(let mesh of this.meshes) {
         let mesh = this.meshes[i];
-        if(('module_id' in mesh) && mesh.module_id === moduleId) {
+        if(('module_id' in mesh) && mesh.circuitId === circuitId && mesh.module_id === moduleId) {
           scene.remove(mesh);
           mesh.geometry.dispose();
           mesh.material.dispose();
@@ -154,12 +169,16 @@ var main = function(data) {
       }
     };
 
-    this.addrender = function(data, basePosition, rotation, moduleId) {
+    this.addrender = function(data, basePosition = [0, 0, 0], rotation = ['x', 'y', 'z'], circuitId) {
       if(this.meshes) {
-        this.removeModuleMesh(moduleId);
-        let circuit = CircuitCreator.create(data, basePosition, rotation);
-        let newMeshes = circuit.create_meshes();
+        let currentData = ('main' in data) ? data.main : data;
+
+        this.circuitsData[circuitId] = [data, basePosition, rotation, circuitId];
+
+        this.circuits[circuitId] = CircuitCreator.create(currentData, basePosition, rotation);
+        let newMeshes = this.circuits[circuitId].create_meshes();
         for(let mesh of newMeshes) {
+          mesh['circuitId'] = circuitId;
           scene.add(mesh);
           if(settings.DISPLAY_EDGES_FLAG) {
             let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
@@ -181,7 +200,7 @@ var main = function(data) {
         window.ondblclick = selectEvent(clickModuleEventInstance.intersected);
         window.oncontextmenu = selectEvent(rightClickModuleEventInstance.intersected);
       }
-      else this.render();
+      else this.render(data, basePosition, rotation, circuitId);
     };
   };
 
@@ -225,24 +244,27 @@ var main = function(data) {
 
   let hoverBitEvent = function() {
     let changedMeshes = [];
+    let previousCircuitId = undefined;
     let previousBitId = undefined;
 
-    let clear = function(meshes = [], bitId = undefined) {
+    let clear = function(meshes = [], circuitId = undefined, bitId = undefined) {
       for(let mesh of changedMeshes) {
         let material = mesh.material;
         material.color = material.defaultColor;
       }
       changedMeshes = meshes;
+      previousCircuitId = circuitId;
       previousBitId = bitId;
     };
 
     this.intersected = function(intersectMeshes) {
       let intersectMesh = intersectMeshes[0].object;
       if(!('bit_id' in intersectMesh)) return clear();
+      let circuitId = intersectMesh.circuitId;
       let bitId = intersectMesh.bit_id;
-      if(bitId === previousBitId) return;
+      if(circuitId === previousCircuitId && bitId === previousBitId) return;
       else {
-        clear(circuitRenderer.circuit.logical_qubit_meshes_map[bitId], bitId);
+        clear(circuitRenderer.circuits[circuitId].logical_qubit_meshes_map[bitId], circuitId, bitId);
         for(let mesh of changedMeshes) {
           let material = mesh.material;
           material.defaultColor = material.color.clone();
@@ -259,14 +281,16 @@ var main = function(data) {
 
   let hoverModuleEvent = function() {
     let changedMeshes = [];
+    let previousCircuitId = undefined;
     let previousModuleId = undefined;
 
-    let clear = function(meshes = [], moduleId = undefined) {
+    let clear = function(meshes = [], circuitId = undefined, moduleId = undefined) {
       for(let mesh of changedMeshes) {
         let material = mesh.material;
         material.color = material.defaultColor;
       }
       changedMeshes = meshes;
+      previousCircuitId = circuitId;
       previousModuleId = moduleId;
       hideDescriptionText();
     };
@@ -274,10 +298,11 @@ var main = function(data) {
     this.intersected = function(intersectMeshes) {
       let intersectMesh = intersectMeshes[0].object;
       if(!('module_id' in intersectMesh)) return clear();
+      let circuitId = intersectMesh.circuitId;
       let moduleId = intersectMesh.module_id;
-      if(moduleId === previousModuleId) return;
+      if(circuitId === previousCircuitId && moduleId === previousModuleId) return;
       else {
-        clear([intersectMesh], moduleId);
+        clear([intersectMesh], circuitId, moduleId);
         for(let mesh of changedMeshes) {
           let material = mesh.material;
           material.defaultColor = material.color.clone();
@@ -296,10 +321,10 @@ var main = function(data) {
   };
 
   let clickModuleEvent = function() {
-    let loadFile = function(moduleId, basePosition, rotation) {
+    let loadFile = function(moduleId, basePosition, rotation, newCircuitId = 'main') {
       let fileName = 'samples/' + moduleId + '.json';
       $.getJSON(fileName, function(data) {
-        circuitRenderer.rerender(data, basePosition, rotation);
+        circuitRenderer.rerender(data, basePosition, rotation, newCircuitId);
       })
       .fail(function(jqXHR, textStatus, errorThrown) {
         console.error('Not found a module: ' + moduleId);
@@ -309,40 +334,58 @@ var main = function(data) {
     this.intersected = function(intersectMeshes) {
       let intersectMesh = intersectMeshes[0].object;
       if(!('module_id' in intersectMesh)) return;
+      let circuitId = intersectMesh.circuitId;
       let moduleId = intersectMesh.module_id;
+      let newCircuitId = circuitId + '_' + moduleId;
       let rotation = intersectMesh.raw_data.rotation;
       console.info(intersectMesh.raw_data.rotation);
-      if(moduleId in data) circuitRenderer.rerender(data[moduleId], [0, 0, 0], rotation);
-      else                 loadFile(moduleId, [0, 0, 0], rotation);
+      if(moduleId in data) circuitRenderer.rerender(data[moduleId], [0, 0, 0], rotation, newCircuitId);
+      else                 loadFile(moduleId, [0, 0, 0], rotation, newCircuitId);
     };
   };
 
   let rightClickModuleEvent = function() {
-    let loadFile = function(moduleId, ...args) {
+    let loadFile = function(moduleId, basePosition, rotation, newCircuitId, circuitId = 'main') {
       let fileName = 'samples/' + moduleId + '.json';
       $.getJSON(fileName, function(data) {
-        circuitRenderer.addrender(data, ...args, moduleId);
+        circuitRenderer.removeModuleMesh(circuitId, moduleId);
+        circuitRenderer.addrender(data, basePosition, rotation, newCircuitId);
       })
       .fail(function(jqXHR, textStatus, errorThrown) {
         console.error('Not found a module: ' + moduleId);
       });
     };
 
+    let calculateBasePosition = function(basePosition, circuitId) {
+      let currentBasePosition = circuitRenderer.getCircuitsData(circuitId)[1];
+      console.info(basePosition);
+      console.info(currentBasePosition);
+      for(let i = 0; i < 3; ++i) {
+        basePosition[i] += currentBasePosition[i];
+      }
+      return basePosition;
+    };
+
     this.intersected = function(intersectMeshes) {
       let intersectMesh = intersectMeshes[0].object;
       if(!('module_id' in intersectMesh)) return;
+      let circuitId = intersectMesh.circuitId;
       let moduleId = intersectMesh.module_id;
-      let basePosition = intersectMesh.raw_data.position;
+      let newCircuitId = circuitId + '_' + moduleId;
+      let basePosition = calculateBasePosition(intersectMesh.raw_data.position, circuitId);
       let rotation = intersectMesh.raw_data.rotation;
-      console.info(intersectMesh.raw_data.rotation);
-      if(moduleId in data) circuitRenderer.addrender(data[moduleId], basePosition, rotation, moduleId);
-      else                 loadFile(moduleId, basePosition, rotation);
+      if(moduleId in data) {
+        CircuitRenderer.removeModuleMesh(circuitId, moduleId);
+        circuitRenderer.addrender(data[moduleId], basePosition, rotation, newCircuitId);
+      }
+      else {
+        loadFile(moduleId, basePosition, rotation, newCircuitId, circuitId);
+      }
     };
   };
 
-  let currentData = ('main' in data) ? data.main : data;
   let circuitRenderer = new CircuitRenderer();
-  circuitRenderer.render(currentData);
+  circuitRenderer.render(data);
 
   (function renderLoop() {
     if(settings.ENABLED_AUTO_FOLLOWING_LIGHT) {
