@@ -84,6 +84,11 @@ class Size extends Vector3D {
     return new Size(...this.get_basis_());
   }
 
+  to_three_array() {
+    let array = this.get_basis_();
+    return [array[2], array[0], array[1]]
+  }
+
   static diff(a, b) {
     let w = Math.abs(Math.abs(a.x - b.x) - 1);
     let h = Math.abs(Math.abs(a.y - b.y) - 1);
@@ -95,6 +100,11 @@ class Size extends Vector3D {
 class Pos extends Vector3D {
   clone() {
     return new Pos(...this.get_basis_());
+  }
+
+  to_three_array() {
+    let array = this.get_basis_();
+    return [array[2], -array[0], array[1]]
   }
 
   is_less_than(other) {
@@ -135,7 +145,7 @@ class Polyhedron {
     if(this.opacity != undefined) opacity = this.opacity;
     let material = new THREE.MeshLambertMaterial({color: color, transparent: transparent, opacity: opacity});
     let mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(...this.pos.mul(settings.SCALE).to_array());
+    mesh.position.set(...this.pos.mul(settings.SCALE).to_three_array());
     return [mesh];
   }
 
@@ -160,7 +170,7 @@ class Polyhedron {
 
 class Rectangular extends Polyhedron {
   create_meshes(...visual) {
-    let geometry = new THREE.BoxGeometry(...this.size.mul(settings.SCALE).to_array());
+    let geometry = new THREE.BoxGeometry(...this.size.mul(settings.SCALE).to_three_array());
     return super.create_meshes(geometry, ...visual);
   }
 
@@ -173,9 +183,9 @@ class SquarePyramid extends Polyhedron {
   constructor(pos, bottom_len, height, axis = 'z', reverse = false, ...visual) {
     super(pos, new Size(bottom_len, bottom_len, height), ...visual);
     let r = reverse ? Math.PI : 0;
-    if(axis === 'x')      this.rotation = [Math.PI / 4, 0, r - Math.PI / 2];
-    else if(axis === 'y') this.rotation = [r, Math.PI / 4, 0];
-    else if(axis === 'z') this.rotation = [Math.PI / 2 - r, Math.PI / 4, 0];
+    if(axis === 'z')      this.rotation = [Math.PI / 4, 0, r - Math.PI / 2];
+    else if(axis === 'x') this.rotation = [r + Math.PI, Math.PI / 4, 0];
+    else if(axis === 'y') this.rotation = [Math.PI / 2 - r, Math.PI / 4, 0];
     else console.error('bad axis');
   }
 

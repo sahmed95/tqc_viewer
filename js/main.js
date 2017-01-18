@@ -38,6 +38,38 @@ var calculateCenterPosition = function(min, max) {
   return max.clone().add(min).divideScalar(2);
 };
 
+class TransformationManager {
+  constructor(circuitRenderer, circuitId, data) {
+    Object.assign(this, {circuitRenderer, data});
+    this.history = [circuitId];
+  }
+
+  transform() {
+    let circuitId = this.history[this.history.length - 1];
+    this.circuitRenderer.removeAllMeshes();
+    this.circuitRenderer.addrender(this.data[circuitId], [0, 0, 0], ['x', 'y', 'z'], circuitId);
+  }
+
+  setButtons(data) {
+    let nextButton = $('#trans-next-button');
+    let prevButton = $('#trans-prev-button');
+    nextButton.off('click').css({'visibility': 'hidden'});
+    prevButton.off('click').css({'visibility': 'hidden'});
+    let transformations = data.transformations;
+    if(transformations) {
+      let nextCircuitId = transformations.next;
+      if(nextCircuitId) {
+        nextButton.on('click', () => {this.history.push(nextCircuitId); this.transform();});
+        nextButton.css({'visibility': 'visible'});
+      }
+    }
+    if(this.history.length > 1) {
+      prevButton.on('click', () => {this.history.pop(); this.transform();});
+      prevButton.css({'visibility': 'visible'});
+    }
+  }
+};
+
 var main = function(data) {
   let scene = new THREE.Scene();
 
@@ -51,7 +83,7 @@ var main = function(data) {
   camera.position.set(0, -40, 40);
   let controls = new THREE.OrbitControls(camera);
 
-  let renderer = new THREE.WebGLRenderer({antialias: settings.ENABLED_ANTIALIAS});
+  let renderer = new THREE.WebGLRenderer({antialias: settings.ENABLED_ANTIALIAS, preserveDrawingBuffer: true});
   renderer.setSize(width, height);
   renderer.setClearColor(new THREE.Color(0xffffff));
   document.getElementById('canvas').appendChild(renderer.domElement);
@@ -77,14 +109,42 @@ var main = function(data) {
 
     this.getCurrentData = function() {
       return dataHistory[dataHistory.length - 1];
-    }
+    };
 
     this.getCircuitsData = function(circuitId) {
       return this.circuitsData[circuitId];
-    }
+    };
 
-    this.render = function(data, basePosition = [0, 0, 0], rotation = ['x', 'y', 'z'], circuitId = 'main') {
+    this.set_min_position = function() {
+      this.min_pos = new THREE.Vector3(0, 0, 0);
+      let first = true;
+      for(let mesh of this.meshes) {
+        let pos = mesh.position;
+        if(first) {
+          this.min_pos.copy(pos);
+          first = false;
+        }
+        this.min_pos.x = Math.min(this.min_pos.x, pos.x);
+        this.min_pos.y = Math.min(this.min_pos.y, pos.y);
+        this.min_pos.z = Math.min(this.min_pos.z, pos.z);
+      }
+    };
+
+    this.replace_meshes = function(meshes) {
+      for(let mesh of meshes) {
+        let pos = mesh.position;
+        pos.x -= this.min_pos.x;
+        pos.y -= this.min_pos.y;
+        pos.z -= this.min_pos.z;
+      }
+    };
+
+    this.render = function(data, basePosition = [0, 0, 0], rotation = ['x', 'y', 'z'], circuitId = 'main', setCamera = true) {
       let currentData = ('main' in data) ? data.main : data;
+      if('circuit' in currentData) currentData = currentData.circuit;
+
+      if(!this.transformationManager) this.transformationManager = new TransformationManager(this, circuitId, data);
+      this.transformationManager.setButtons(currentData);
 
       dataHistory.push([data, basePosition, rotation, circuitId]);
       if(!this.circuitsData) this.circuitsData = {};
@@ -93,6 +153,8 @@ var main = function(data) {
       if(!this.circuits) this.circuits = {};
       this.circuits[circuitId] = CircuitCreator.create(currentData, basePosition, rotation);
       this.meshes = this.circuits[circuitId].create_meshes();
+      this.set_min_position();
+      this.replace_meshes(this.meshes);
       for(let mesh of this.meshes) {
         mesh['circuitId'] = circuitId;
         scene.add(mesh);
@@ -104,15 +166,17 @@ var main = function(data) {
         }
       }
 
-      controls.reset();
-      let minPosition = findMinPosition(this.meshes);
-      let maxPosition = findMaxPosition(this.meshes);
-      let size = calculateSize(minPosition, maxPosition);
-      let centerPosition = calculateCenterPosition(minPosition, maxPosition);
-      camera.position.setX(centerPosition.x);
-      camera.position.setY((centerPosition.y - Math.max(size.y, size.z)) * 1.3 * 2);
-      camera.position.setZ((centerPosition.z + Math.max(size.y, size.z)) * 1.3);
-      controls.target.copy(centerPosition);
+      if(setCamera) {
+        controls.reset();
+        let minPosition = findMinPosition(this.meshes);
+        let maxPosition = findMaxPosition(this.meshes);
+        let size = calculateSize(minPosition, maxPosition);
+        let centerPosition = calculateCenterPosition(minPosition, maxPosition);
+        camera.position.setX(centerPosition.x);
+        camera.position.setY((centerPosition.y - Math.max(size.y, size.z)) * 1.3 * 2);
+        camera.position.setZ((centerPosition.z + Math.max(size.y, size.z)) * 1.3);
+        controls.target.copy(centerPosition);
+      }
 
       let hoverBitEventInstance = new hoverBitEvent();
       let hoverModuleEventInstance = new hoverModuleEvent();
@@ -148,11 +212,41 @@ var main = function(data) {
     };
 
     this.rerender = function(...args) {
+      $('#reset-button').off('click');
+      $('#back-button').off('click');
       hideDescriptionText();
       $('canvas').fadeOut('fast', () => {
         this.clear();
         this.render(...args);
       }).fadeIn(1000);
+    };
+
+    this.removeMesh = function(mesh) {
+      for(let i = 0; i < this.meshes.length; ++i) {
+        if(mesh === this.meshes[i]) {
+          scene.remove(mesh);
+          mesh.geometry.dispose();
+          mesh.material.dispose();
+          this.meshes.splice(i, 1);
+          return;
+        }
+      }
+    };
+
+    this.removeAllMeshes = function() {
+      for(let mesh of this.meshes) {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+      }
+      this.meshes = [];
+    };
+
+    this.removeMeshes = function(meshes) {
+      if(!meshes) return this.removeAllMeshes();
+      for(let mesh of meshes) {
+        this.removeMesh(mesh);
+      }
     };
 
     this.removeModuleMesh = function(circuitId, moduleId) {
@@ -169,38 +263,40 @@ var main = function(data) {
       }
     };
 
-    this.addrender = function(data, basePosition = [0, 0, 0], rotation = ['x', 'y', 'z'], circuitId) {
-      if(this.meshes) {
-        let currentData = ('main' in data) ? data.main : data;
+    this.addrender = function(data, basePosition = [0, 0, 0], rotation = ['x', 'y', 'z'], circuitId = 'main') {
+      let currentData = ('main' in data) ? data.main : data;
+      if('circuit' in currentData) currentData = currentData.circuit;
 
-        this.circuitsData[circuitId] = [data, basePosition, rotation, circuitId];
+      if(!this.transformationManager) this.transformationManager = new TransformationManager(this, circuitId, data);
+      this.transformationManager.setButtons(currentData);
 
-        this.circuits[circuitId] = CircuitCreator.create(currentData, basePosition, rotation);
-        let newMeshes = this.circuits[circuitId].create_meshes();
-        for(let mesh of newMeshes) {
-          mesh['circuitId'] = circuitId;
-          scene.add(mesh);
-          if(settings.DISPLAY_EDGES_FLAG) {
-            let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
-            let material = new THREE.LineBasicMaterial({color: settings.COLOR_SET.EDGE});
-            let edge = new THREE.LineSegments(geometry, material);
-            mesh.add(edge);
-          }
+      this.circuitsData[circuitId] = [data, basePosition, rotation, circuitId];
+
+      this.circuits[circuitId] = CircuitCreator.create(currentData, basePosition, rotation);
+      let newMeshes = this.circuits[circuitId].create_meshes();
+      this.replace_meshes(newMeshes);
+      for(let mesh of newMeshes) {
+        mesh['circuitId'] = circuitId;
+        scene.add(mesh);
+        if(settings.DISPLAY_EDGES_FLAG) {
+          let geometry = new THREE.EdgesGeometry(mesh.geometry); // or WireframeGeometry
+          let material = new THREE.LineBasicMaterial({color: settings.COLOR_SET.EDGE});
+          let edge = new THREE.LineSegments(geometry, material);
+          mesh.add(edge);
         }
-        this.meshes.push(...newMeshes);
-
-        let hoverBitEventInstance = new hoverBitEvent();
-        let hoverModuleEventInstance = new hoverModuleEvent();
-        let clickModuleEventInstance = new clickModuleEvent();
-        let rightClickModuleEventInstance = new rightClickModuleEvent();
-        let hoverEventsIntersected = [hoverBitEventInstance.intersected, hoverModuleEventInstance.intersected];
-        let hoverEventsNonintersected = [hoverBitEventInstance.nonintersected, hoverModuleEventInstance.nonintersected];
-
-        window.onmousemove = selectEvent(hoverEventsIntersected, hoverEventsNonintersected);
-        window.ondblclick = selectEvent(clickModuleEventInstance.intersected);
-        window.oncontextmenu = selectEvent(rightClickModuleEventInstance.intersected);
       }
-      else this.render(data, basePosition, rotation, circuitId);
+      this.meshes.push(...newMeshes);
+
+      let hoverBitEventInstance = new hoverBitEvent();
+      let hoverModuleEventInstance = new hoverModuleEvent();
+      let clickModuleEventInstance = new clickModuleEvent();
+      let rightClickModuleEventInstance = new rightClickModuleEvent();
+      let hoverEventsIntersected = [hoverBitEventInstance.intersected, hoverModuleEventInstance.intersected];
+      let hoverEventsNonintersected = [hoverBitEventInstance.nonintersected, hoverModuleEventInstance.nonintersected];
+
+      window.onmousemove = selectEvent(hoverEventsIntersected, hoverEventsNonintersected);
+      window.ondblclick = selectEvent(clickModuleEventInstance.intersected);
+      window.oncontextmenu = selectEvent(rightClickModuleEventInstance.intersected);
     };
   };
 
@@ -386,6 +482,14 @@ var main = function(data) {
 
   let circuitRenderer = new CircuitRenderer();
   circuitRenderer.render(data);
+
+  console.info($('#canvas'));
+  $('#export-button').off('click').on('click', () => {
+    let canvas = $('#canvas').get(0).firstChild;
+    let context = canvas.getContext("experimental-webgl", {preserveDrawingBuffer: true});
+    window.open(canvas.toDataURL('image/png'), '_blank');
+  });
+  $('#export-button').css('visibility', 'visible');
 
   (function renderLoop() {
     if(settings.ENABLED_AUTO_FOLLOWING_LIGHT) {
